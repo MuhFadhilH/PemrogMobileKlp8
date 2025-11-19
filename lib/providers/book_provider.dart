@@ -3,45 +3,39 @@ import '../models/book_model.dart';
 import '../services/api_service.dart';
 
 class BookProvider with ChangeNotifier {
-  // State
-  List<Book> _books = []; // Hasil pencarian
-  List<Book> _readingList = []; // Daftar bacaan saya
+  final ApiService _apiService = ApiService();
+
+  List<Book> _books = [];
   bool _isLoading = false;
-  
+  String _errorMessage = '';
+
   // Getters
   List<Book> get books => _books;
-  List<Book> get readingList => _readingList;
   bool get isLoading => _isLoading;
+  String get errorMessage => _errorMessage;
 
-  // Logika 1: Cari Buku
+  // Fungsi untuk mencari buku
   Future<void> searchBooks(String query) async {
     _isLoading = true;
-    notifyListeners(); // Kabari UI bahwa sedang loading
+    _errorMessage = '';
+    notifyListeners();
 
     try {
-      _books = await ApiService().searchBooks(query);
+      // PERBAIKAN UTAMA DISINI:
+      // Panggil _apiService.fetchBooks, BUKAN searchBooks
+      _books = await _apiService.fetchBooks(query);
     } catch (e) {
-      print(e);
+      _errorMessage = 'Gagal memuat buku: $e';
       _books = [];
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners(); // Kabari UI bahwa data sudah siap
   }
 
-  // Logika 2: Tambah/Hapus dari Daftar Bacaan
-  void toggleReadingList(Book book) {
-    final isExist = _readingList.contains(book);
-    if (isExist) {
-      _readingList.remove(book);
-    } else {
-      _readingList.add(book);
-    }
-    notifyListeners(); // Kabari UI bahwa daftar bacaan berubah
-  }
-
-  // Cek apakah buku sudah ada di list (untuk ikon bookmark)
-  bool isInReadingList(Book book) {
-    return _readingList.any((item) => item.id == book.id);
+  // Fungsi helper untuk membersihkan hasil pencarian (opsional)
+  void clearBooks() {
+    _books = [];
+    notifyListeners();
   }
 }

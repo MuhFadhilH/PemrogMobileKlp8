@@ -3,34 +3,35 @@ import 'package:http/http.dart' as http;
 import '../models/book_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://www.googleapis.com/books/v1/volumes';
+  // URL Google Books API
+  static const String _baseUrl = 'https://www.googleapis.com/books/v1/volumes';
 
-  // Cari Buku (Search)
-  Future<List<Book>> searchBooks(String query) async {
-    final url = Uri.parse('$baseUrl?q=$query&maxResults=20');
-    final response = await http.get(url);
+  // Fungsi fetchBooks yang dicari-cari oleh HomeScreen
+  Future<List<Book>> fetchBooks(String query) async {
+    // Kalau query kosong, jangan request ke internet
+    if (query.trim().isEmpty) return [];
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['totalItems'] == 0 || data['items'] == null) return [];
-      
-      final List items = data['items'];
-      return items.map((item) => Book.fromJson(item)).toList();
-    } else {
-      return [];
-    }
-  }
+    try {
+      // Request ke Google Books API
+      final response = await http.get(Uri.parse('$_baseUrl?q=$query'));
 
-  // Ambil Detail Buku (Supaya dapat Rating/Desc lebih lengkap)
-  Future<Book> getBookDetails(String bookId) async {
-    final url = Uri.parse('$baseUrl/$bookId');
-    final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return Book.fromJson(data);
-    } else {
-      throw Exception('Gagal ambil detail');
+        // Cek apakah ada buku yang ditemukan
+        if (data['items'] != null) {
+          final List<dynamic> items = data['items'];
+
+          // Convert JSON API menjadi List of Book Objects
+          return items.map((json) => Book.fromJson(json)).toList();
+        } else {
+          return []; // Tidak ada buku ditemukan
+        }
+      } else {
+        throw Exception('Gagal mengambil data buku: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Terjadi kesalahan koneksi: $e');
     }
   }
 }
