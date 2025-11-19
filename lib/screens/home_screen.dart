@@ -1,11 +1,14 @@
-import 'detail_screen.dart';
-import 'dart:math'; // Import ini untuk fitur acak rekomendasi
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart'; // Pastikan ini tetap ada jika BookProvider dipakai di tempat lain
+import '../models/book_model.dart';
+import '../models/book_status.dart'; // Import ini
 import '../providers/book_provider.dart';
-import 'reading_list_screen.dart';
+import '../services/api_service.dart';
+import '../services/firestore_service.dart'; // Import ini
+import 'detail_screen.dart';
+import 'reading_list_screen.dart'; // Import ini
 
-// Ubah jadi StatefulWidget
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,189 +17,282 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _controller = TextEditingController();
+  final ApiService _apiService = ApiService();
+  final FirestoreService _firestoreService =
+      FirestoreService(); // Inisialisasi FirestoreService
+  List<Book> _books = [];
+  bool _isLoading = false;
+  String _currentQuery = 'Flutter programming'; // Default query
 
   @override
   void initState() {
     super.initState();
+    _fetchBooks();
+  }
 
-    // --- FITUR REKOMENDASI OTOMATIS ---
-    // Trik: Kita panggil pencarian otomatis setelah frame pertama selesai dirender
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Kita acak topik agar terlihat seperti rekomendasi dinamis
-      final topics = ['technology', 'history', 'fiction', 'cooking', 'science'];
-      final randomTopic = topics[Random().nextInt(topics.length)];
-
-      // Panggil fungsi search di Provider
-      Provider.of<BookProvider>(
-        context,
-        listen: false,
-      ).searchBooks(randomTopic);
+  Future<void> _fetchBooks() async {
+    setState(() {
+      _isLoading = true;
     });
+    try {
+      final fetchedBooks = await _apiService.fetchBooks(_currentQuery);
+      setState(() {
+        _books = fetchedBooks;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load books: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cari & Rekomendasi'), // Judul kita update sedikit
+        title: const Text('Bibliomate'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.bookmarks),
-            tooltip: 'Daftar Bacaan',
+            icon: const Icon(Icons.bookmark_added_outlined),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ReadingListScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const ReadingListScreen(),
+                ),
               );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () {
+              // TODO: Navigasi ke ProfileScreen
             },
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // --- Search Bar ---
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: 'Cari judul spesifik...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.arrow_forward),
-                  onPressed: () {
-                    if (_controller.text.isNotEmpty) {
-                      Provider.of<BookProvider>(
-                        context,
-                        listen: false,
-                      ).searchBooks(_controller.text);
-                    }
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
-              ),
-              onSubmitted: (value) {
-                // Agar user bisa enter di keyboard hp
-                if (value.isNotEmpty) {
-                  Provider.of<BookProvider>(
-                    context,
-                    listen: false,
-                  ).searchBooks(value);
-                }
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _books.length,
+              itemBuilder: (context, index) {
+                final book = _books[index];
+                return BookListItem(
+                  book: book,
+                  firestoreService: _firestoreService,
+                ); // Menggunakan widget baru
               },
             ),
-          ),
+    );
+  }
+}
 
-          // --- Hasil List / Rekomendasi ---
-          Expanded(
-            child: Consumer<BookProvider>(
-              builder: (context, provider, child) {
-                // 1. Tampilan Loading
-                if (provider.isLoading) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 10),
-                        Text("Sedang mengambil rekomendasi..."),
-                      ],
-                    ),
-                  );
-                }
+// --- WIDGET BARU: BOOK LIST ITEM (Untuk tampilan Soft UI) ---
+class BookListItem extends StatelessWidget {
+  final Book book;
+  final FirestoreService firestoreService; // Terima FirestoreService
 
-                // 2. Tampilan Jika Kosong / Error
-                if (provider.books.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 60, color: Colors.grey),
-                        Text('Buku tidak ditemukan.'),
-                      ],
-                    ),
-                  );
-                }
+  const BookListItem({
+    super.key,
+    required this.book,
+    required this.firestoreService,
+  });
 
-                // 3. Tampilan List Buku
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: provider.books.length,
-                  separatorBuilder: (ctx, i) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final book = provider.books[index];
-                    final isSaved = provider.isInReadingList(book);
-
-                    return Card(
-                      // Pakai Card biar lebih cantik
-                      elevation: 2,
-                      child: ListTile(
-                        onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DetailScreen(book: book),
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => DetailScreen(book: book)),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      );
-    },
-                        contentPadding: const EdgeInsets.all(8),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
-                            book.thumbnailUrl,
-                            width: 50,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, _) =>
-                                const Icon(Icons.book),
-                          ),
-                        ),
-                        title: Text(
-                          book.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          book.author,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          icon: Icon(
-                            isSaved ? Icons.bookmark : Icons.bookmark_border,
-                            color: isSaved ? Colors.blue : Colors.grey,
-                            size: 28,
-                          ),
-                          onPressed: () {
-                            provider.toggleReadingList(book);
-                            // Opsional: Tampilkan pesan kecil (SnackBar)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  isSaved
-                                      ? 'Dihapus dari daftar bacaan'
-                                      : 'Disimpan ke daftar bacaan',
-                                ),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                book.thumbnailUrl,
+                width: 70,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 70,
+                  height: 100,
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.book, color: Colors.grey),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    book.author,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        color: Colors.amber[400],
+                        size: 16,
                       ),
+                      const SizedBox(width: 4),
+                      Text(
+                        book.averageRating.toStringAsFixed(1),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '(${book.ratingsCount} review)',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // --- ICON BOOKMARK DINAMIS ---
+            StreamBuilder<BookStatus>(
+              stream: firestoreService.getBookStatusStream(book.id),
+              builder: (context, snapshot) {
+                final currentStatus = snapshot.data ?? BookStatus.none;
+                return IconButton(
+                  icon: Icon(
+                    currentStatus != BookStatus.none
+                        ? Icons.bookmark
+                        : Icons.bookmark_border,
+                    color: currentStatus != BookStatus.none
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                  ),
+                  onPressed: () {
+                    // Ketika ditekan, munculkan modal pilihan status
+                    _showStatusSelectionModal(
+                      context,
+                      book,
+                      currentStatus,
+                      firestoreService,
                     );
                   },
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showStatusSelectionModal(
+    BuildContext context,
+    Book book,
+    BookStatus currentStatus,
+    FirestoreService firestoreService,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Atur Status Buku: ${book.title}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...BookStatus.values.where((s) => s != BookStatus.none).map((
+                status,
+              ) {
+                return RadioListTile<BookStatus>(
+                  title: Text(status.toDisplayString()),
+                  value: status,
+                  groupValue: currentStatus,
+                  onChanged: (newValue) async {
+                    if (newValue != null) {
+                      await firestoreService.saveBookToReadingList(
+                        book,
+                        newValue,
+                      );
+                      if (context.mounted) Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Status diubah ke ${newValue.toDisplayString()}',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                );
+              }).toList(),
+              // Opsi untuk menghapus dari daftar
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Hapus dari Daftar'),
+                onTap: () async {
+                  await firestoreService.saveBookToReadingList(
+                    book,
+                    BookStatus.none,
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Buku dihapus dari daftar')),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "411293256836",
+    "project_id": "biblio-72a1a",
+    "storage_bucket": "biblio-72a1a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411293256836:android:eab11c61c0ecc7bf6dc6d1",
+        "android_client_info": {
+          "package_name": "com.amrullah.biblio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaaWVySj69FORo59S9dhCApLrlSEHrmrM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411293256836:android:65fd5894478b0e526dc6d1",
+        "android_client_info": {
+          "package_name": "com.example.biblio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaaWVySj69FORo59S9dhCApLrlSEHrmrM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
