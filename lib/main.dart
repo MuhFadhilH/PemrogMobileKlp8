@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart'; // Pastikan file ini tetap ada
 import 'providers/book_provider.dart';
-import 'screens/home_screen.dart';
 import 'screens/login_page.dart';
+import 'main_nav.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
               );
             }
             if (snapshot.hasData) {
-              return const HomeScreen();
+              return const MainNav();
             }
             return const LoginPage();
           },
