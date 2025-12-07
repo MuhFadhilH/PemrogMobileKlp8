@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
 import '../models/book_status.dart';
+import '../models/review_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -19,13 +20,13 @@ class FirestoreService {
         .doc(bookId)
         .snapshots()
         .map((snapshot) {
-          if (snapshot.exists) {
-            return BookStatusExtension.fromFirestoreString(
-              snapshot.data()?['readingStatus'],
-            );
-          }
-          return BookStatus.none;
-        });
+      if (snapshot.exists) {
+        return BookStatusExtension.fromFirestoreString(
+          snapshot.data()?['readingStatus'],
+        );
+      }
+      return BookStatus.none;
+    });
   }
 
   // 2. Simpan Buku dengan Status (Ingin dibaca, Selesai, dll)
@@ -44,10 +45,10 @@ class FirestoreService {
         .collection('reading_list')
         .doc(book.id)
         .set({
-          ...book.toMap(),
-          'readingStatus': status.toFirestoreString(), // Simpan status string
-          'addedAt': FieldValue.serverTimestamp(),
-        });
+      ...book.toMap(),
+      'readingStatus': status.toFirestoreString(), // Simpan status string
+      'addedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // 3. Hapus Buku
@@ -96,10 +97,8 @@ class FirestoreService {
     User? user = _auth.currentUser;
     if (user == null) return;
 
-    DocumentSnapshot userDoc = await _db
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    DocumentSnapshot userDoc =
+        await _db.collection('users').doc(user.uid).get();
     String username = 'User';
     if (userDoc.exists && (userDoc.data() as Map).containsKey('username')) {
       username = userDoc['username'];
@@ -122,5 +121,33 @@ class FirestoreService {
         .collection('comments')
         .orderBy('timestamp', descending: true)
         .snapshots();
+  }
+
+  // Fungsi Create Review (Memenuhi Syarat CRUD)
+  Future<void> addReview({
+    required Book book,
+    required double rating,
+    required String reviewText,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception("User belum login");
+
+    // Kita buat ID dokumen secara otomatis
+    final docRef = _db.collection('reviews').doc();
+
+    final newReview = Review(
+      id: docRef.id,
+      userId: user.uid,
+      bookId: book.id,
+      bookTitle: book.title,
+      bookAuthor: book.author,
+      bookThumbnailUrl: book.thumbnailUrl,
+      rating: rating,
+      reviewText: reviewText,
+      createdAt: DateTime.now(),
+    );
+
+    // Simpan ke Firestore
+    await docRef.set(newReview.toMap());
   }
 }
