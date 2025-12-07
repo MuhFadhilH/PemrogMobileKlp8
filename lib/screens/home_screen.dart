@@ -1,11 +1,8 @@
-import 'dart:math'; // Import wajib buat ngacak
 import 'package:flutter/material.dart';
 import '../models/book_model.dart';
-import '../models/book_status.dart';
 import '../services/api_service.dart';
-import '../services/firestore_service.dart';
+// import '../services/firestore_service.dart'; // Simpan buat nanti
 import 'detail_screen.dart';
-import 'reading_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,60 +13,41 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
-  final FirestoreService _firestoreService = FirestoreService();
 
-  List<Book> _books = [];
-  bool _isLoading = false;
-  String _currentQuery = ''; // Nanti diisi otomatis
-
-  // --- DAFTAR TOPIK ACAK ---
-  final List<String> _randomTopics = [
-    'Technology',
-    'Programming',
-    'History',
-    'Fiction',
-    'Horror',
-    'Science',
-    'Business',
-    'Design',
-    'Cooking',
-    'Travel',
-    'Biography',
-    'Fantasy',
-  ];
+  // Kita siapkan 3 wadah data untuk 3 section berbeda
+  List<Book> _recommendedBooks = [];
+  List<Book> _trendingBooks = [];
+  List<Book> _historyBooks = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _pickRandomTopicAndFetch(); // Jalankan fungsi acak saat mulai
+    _fetchAllData();
   }
 
-  // Fungsi pilih topik acak lalu ambil data
-  Future<void> _pickRandomTopicAndFetch() async {
-    // Pilih 1 topik acak dari list
-    final randomTopic = _randomTopics[Random().nextInt(_randomTopics.length)];
-
-    setState(() {
-      _currentQuery = randomTopic; // Set judul agar user tau ini topik apa
-    });
-
-    await _fetchBooks(randomTopic);
-  }
-
-  Future<void> _fetchBooks(String query) async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchAllData() async {
     try {
-      final fetchedBooks = await _apiService.fetchBooks(query);
-      setState(() {
-        _books = fetchedBooks;
-      });
-    } catch (e) {
+      // 1. "Cocok Untukmu" -> Sementara kita hardcode cari 'Psychology'
+      // Nanti ini diganti dengan variable dari Preferensi User
+      final recommended = await _apiService.fetchBooks('Psychology');
+
+      // 2. "Sedang Tren" -> Kita cari 'Best Seller 2024'
+      final trending = await _apiService.fetchBooks('Best Seller Fiction');
+
+      // 3. "Sejarah" (Genre Lain)
+      final history = await _apiService.fetchBooks('History Indonesia');
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+        setState(() {
+          _recommendedBooks = recommended;
+          _trendingBooks = trending;
+          _historyBooks = history;
+          _isLoading = false;
+        });
       }
-    } finally {
+    } catch (e) {
+      debugPrint("Error fetching books: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -77,261 +55,263 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // Background Soft
-      appBar: AppBar(
-        title: Column(
-          children: [
-            const Text(
-              'Bibliomate',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            // Menampilkan topik apa yang sedang tampil
-            Text(
-              'Topik Hari Ini: $_currentQuery',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.normal,
+      backgroundColor: Colors.white,
+      // SafeArea biar gak ketutup poni HP
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. HEADER (Sapaan)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Selamat Pagi,",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              "Fadhil Hilmy 👋", // Nanti ambil dari Auth
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // 2. SECTION: COCOK UNTUKMU (Carousel Besar - Infinite)
+                      _buildSectionTitle("Cocok Untukmu"),
+                      InfiniteBookList(
+                        books: _recommendedBooks,
+                        height: 280, // Tinggi area
+                        itemBuilder: (context, book) {
+                          return _buildBigBookCard(context, book);
+                        },
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      // 3. SECTION: SEDANG TREN (List Kecil - Infinite)
+                      _buildSectionTitle("Sedang Tren 🔥"),
+                      InfiniteBookList(
+                        books: _trendingBooks,
+                        height: 200, // Tinggi area
+                        itemBuilder: (context, book) {
+                          return _buildSmallBookCard(context, book);
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // 4. SECTION: GENRE HISTORY
+                      _buildSectionTitle("Jelajahi Sejarah"),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _historyBooks.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            final book = _historyBooks[index];
+                            return _buildSmallBookCard(context, book);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          // Tombol Refresh (Kalau mau ganti topik manual)
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _pickRandomTopicAndFetch,
-            tooltip: "Ganti Topik",
-          ),
-          IconButton(
-            icon: const Icon(Icons.bookmark_added_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReadingListScreen()),
-            ),
-          ),
-        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh:
-                  _pickRandomTopicAndFetch, // Tarik layar buat ganti topik
-              child: _books.isEmpty
-                  ? const Center(child: Text("Tidak ada buku ditemukan"))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: _books.length,
-                      itemBuilder: (context, index) {
-                        return BookListItem(
-                          book: _books[index],
-                          firestoreService: _firestoreService,
-                        );
-                      },
-                    ),
-            ),
     );
   }
-}
 
-// --- WIDGET ITEM BUKU (Soft UI + Bookmark Dinamis) ---
-class BookListItem extends StatelessWidget {
-  final Book book;
-  final FirestoreService firestoreService;
+  // --- WIDGET PENDUKUNG (Biar kodenya rapi) ---
 
-  const BookListItem({
-    super.key,
-    required this.book,
-    required this.firestoreService,
-  });
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF2C3E50),
+        ),
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  // Kartu Besar untuk "Cocok Untukmu"
+  Widget _buildBigBookCard(BuildContext context, Book book) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Gambar Cover dengan Shadow
+          Container(
+            height: 200,
+            width: 140,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover Buku
-            ClipRRect(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                book.thumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    Container(color: Colors.grey[300]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Judul & Rating
+          SizedBox(
+            width: 140,
+            child: Text(
+              book.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.star, color: Colors.amber, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                book.averageRating.toString(),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Kartu Kecil untuk "Trending"
+  Widget _buildSmallBookCard(BuildContext context, Book book) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 140,
+            width: 100,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[200],
+            ),
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.network(
                 book.thumbnailUrl,
-                width: 70,
-                height: 105,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 70,
-                  height: 105,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.book, color: Colors.grey),
-                ),
+                errorBuilder: (_, __, ___) => const Icon(Icons.book),
               ),
             ),
-            const SizedBox(width: 14),
-
-            // Info Buku
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    book.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.star_rounded,
-                        color: Colors.amber[400],
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        book.averageRating > 0
-                            ? book.averageRating.toString()
-                            : 'N/A',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                    ],
-                  ),
-                ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 100,
+            child: Text(
+              book.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
               ),
             ),
-
-            // Bookmark Button
-            StreamBuilder<BookStatus>(
-              stream: firestoreService.getBookStatusStream(book.id),
-              builder: (context, snapshot) {
-                final status = snapshot.data ?? BookStatus.none;
-                return IconButton(
-                  icon: Icon(
-                    status != BookStatus.none
-                        ? Icons.bookmark
-                        : Icons.bookmark_border,
-                    color: status != BookStatus.none
-                        ? const Color(0xFF5C6BC0)
-                        : Colors.grey[400],
-                  ),
-                  onPressed: () => _showStatusModal(context, book, status),
-                );
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  void _showStatusModal(
-    BuildContext context,
-    Book book,
-    BookStatus currentStatus,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Simpan ke Koleksi',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _option(
-              context,
-              book,
-              BookStatus.wantToRead,
-              "Ingin Dibaca",
-              currentStatus,
-            ),
-            _option(
-              context,
-              book,
-              BookStatus.currentlyReading,
-              "Sedang Dibaca",
-              currentStatus,
-            ),
-            _option(
-              context,
-              book,
-              BookStatus.finished,
-              "Selesai Dibaca",
-              currentStatus,
-            ),
-            if (currentStatus != BookStatus.none) ...[
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text(
-                  "Hapus dari koleksi",
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () {
-                  firestoreService.saveBookToReadingList(book, BookStatus.none);
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+// --- WIDGET LIST INFINITE (BERPUTAR TERUS) ---
+class InfiniteBookList extends StatelessWidget {
+  final List<Book> books;
+  final double height;
+  final Widget Function(BuildContext, Book) itemBuilder;
 
-  Widget _option(
-    BuildContext context,
-    Book book,
-    BookStatus status,
-    String label,
-    BookStatus current,
-  ) {
-    return RadioListTile<BookStatus>(
-      title: Text(label),
-      value: status,
-      groupValue: current,
-      activeColor: const Color(0xFF5C6BC0),
-      onChanged: (val) {
-        firestoreService.saveBookToReadingList(book, val!);
-        Navigator.pop(context);
-      },
+  const InfiniteBookList({
+    super.key,
+    required this.books,
+    required this.height,
+    required this.itemBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (books.isEmpty) {
+      return SizedBox(
+        height: height,
+        child: const Center(child: Text("Belum ada data")),
+      );
+    }
+
+    return SizedBox(
+      height: height,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        // itemCount: null, // null artinya tak terbatas (infinite)
+        // Atau kita kasih angka sangat besar agar memory aman
+        itemCount: 10000,
+        itemBuilder: (context, index) {
+          // LOGIKA MODULO:
+          // index % books.length akan selalu menghasilkan angka
+          // antara 0 sampai (panjang data - 1).
+          // Contoh: Data ada 5. Saat index 5, 5%5=0 (balik ke awal).
+          final int realIndex = index % books.length;
+          final book = books[realIndex];
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 16), // Jarak antar item
+            child: itemBuilder(context, book),
+          );
+        },
+      ),
     );
   }
 }
