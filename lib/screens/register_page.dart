@@ -17,8 +17,9 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _register() async {
     if (_usernameController.text.isEmpty ||
         _emailController.text.isEmpty ||
-        _passwordController.text.isEmpty)
+        _passwordController.text.isEmpty) {
       return;
+    }
     setState(() => _isLoading = true);
 
     try {
@@ -45,10 +46,11 @@ class _RegisterPageState extends State<RegisterPage> {
         ).showSnackBar(const SnackBar(content: Text("Akun berhasil dibuat!")));
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

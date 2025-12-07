@@ -62,7 +62,7 @@ class Book {
       author: data['author'] ?? 'Penulis Tidak Diketahui',
       description: data['description'] ?? 'Belum ada deskripsi untuk buku ini.',
       thumbnailUrl:
-          data['thumbnailUrl'] ?? 'https://picsum.photos/seed/${id}/150/220',
+          data['thumbnailUrl'] ?? 'https://picsum.photos/seed/$id/150/220',
       infoLink: data['infoLink'] ?? '',
       averageRating: (data['averageRating'] as num?)?.toDouble() ?? 0.0,
       ratingsCount: (data['ratingsCount'] as int?) ?? 0,
