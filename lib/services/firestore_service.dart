@@ -150,4 +150,21 @@ class FirestoreService {
     // Simpan ke Firestore
     await docRef.set(newReview.toMap());
   }
+
+  // Fungsi READ: Ambil semua review milik user yang login
+  Stream<List<Review>> getUserReviews() {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+
+    return _db
+        .collection('reviews')
+        .where('userId', isEqualTo: user.uid) // Filter cuma punya dia
+        .orderBy('createdAt', descending: true) // Yang terbaru di atas
+        .snapshots() // Stream: kalau ada update, UI berubah otomatis
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return Review.fromMap(doc.data(), doc.id);
+      }).toList();
+    });
+  }
 }
