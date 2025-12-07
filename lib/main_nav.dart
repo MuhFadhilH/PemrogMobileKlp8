@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/placeholder_screens.dart'; // Import dummy screens tadi
 import 'screens/log_search_page.dart';
 import 'screens/profile_screen.dart';
+import 'screens/explore_screen.dart';
 
 class MainNav extends StatefulWidget {
   const MainNav({super.key});
