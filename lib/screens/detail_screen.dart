@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/book_model.dart';
 import '../models/book_status.dart';
-import '../models/review_model.dart'; // Import Review Model
+import '../models/review_model.dart';
+import '../models/book_list_model.dart'; // Import Model Baru
 import '../services/firestore_service.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -15,26 +16,35 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _commentController = TextEditingController();
-
   final Color _primaryColor = const Color(0xFF5C6BC0);
 
-  // ... (Kode _showStatusSelectionModal dan _buildRadioOption TETAP SAMA, tidak diubah) ...
-  // ... (Silakan copy-paste bagian Modal Status dari file lama jika perlu) ...
-  // Agar ringkas, saya fokus ke bagian yang berubah di bawah ini:
+  Future<void> _sendComment() async {
+    if (_commentController.text.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
+    try {
+      await _firestoreService.addReview(
+          book: widget.book,
+          rating: 0.0,
+          reviewText: _commentController.text.trim());
+      _commentController.clear();
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("Komentar terkirim!")));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
+  }
 
+  // --- MODAL PILIHAN STATUS & BOOKLIST ---
   void _showStatusSelectionModal(
-    BuildContext context,
-    Book book,
-    BookStatus currentStatus,
-  ) {
-    // ... Copy logika modal dari file sebelumnya ...
-    // (Isinya sama persis dengan file kamu yang lama)
+      BuildContext context, Book book, BookStatus currentStatus) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(24.0),
@@ -42,32 +52,41 @@ class _DetailScreenState extends State<DetailScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Status Bacaan',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Status Bacaan',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              _buildRadioOption(
+              _radioOption(
                   BookStatus.wantToRead, "Ingin Dibaca", currentStatus),
-              _buildRadioOption(
+              _radioOption(
                   BookStatus.currentlyReading, "Sedang Dibaca", currentStatus),
-              _buildRadioOption(
+              _radioOption(
                   BookStatus.finished, "Selesai Dibaca", currentStatus),
               const Divider(height: 30),
-              if (currentStatus != BookStatus.none)
+              const Text('Simpan ke BookList',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                leading:
+                    const Icon(Icons.playlist_add, color: Color(0xFF5C6BC0)),
+                title: const Text("Tambahkan ke Custom BookList"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddToBookListDialog(context, book);
+                },
+              ),
+              if (currentStatus != BookStatus.none) ...[
+                const Divider(),
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('Hapus dari Koleksi',
+                  title: const Text('Hapus dari Status Bacaan',
                       style: TextStyle(color: Colors.red)),
-                  onTap: () async {
+                  onTap: () {
                     Navigator.pop(context);
-                    await _firestoreService.saveBookToReadingList(
+                    _firestoreService.saveBookToReadingList(
                         book, BookStatus.none);
-                    if (mounted)
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text("Dihapus dari koleksi")));
                   },
                 ),
+              ]
             ],
           ),
         );
@@ -75,47 +94,84 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildRadioOption(
-      BookStatus status, String label, BookStatus currentGroupValue) {
-    return RadioListTile<BookStatus>(
-      title: Text(label),
-      value: status,
-      groupValue: currentGroupValue,
-      activeColor: _primaryColor,
-      contentPadding: EdgeInsets.zero,
-      onChanged: (newValue) async {
-        if (newValue != null) {
-          Navigator.pop(context);
-          await _firestoreService.saveBookToReadingList(widget.book, newValue);
-          if (mounted)
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text("Status: $label")));
-        }
+  // --- MODAL PILIH BOOKLIST ---
+  void _showAddToBookListDialog(BuildContext context, Book book) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: 400,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Pilih BookList",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: StreamBuilder<List<BookList>>(
+                  stream: _firestoreService.getUserBookLists(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+                    var bookLists = snapshot.data!;
+                    if (bookLists.isEmpty)
+                      return const Center(
+                          child:
+                              Text("Belum ada BookList. Buat di Profil dulu!"));
+
+                    return ListView.builder(
+                      itemCount: bookLists.length,
+                      itemBuilder: (context, index) {
+                        final list = bookLists[index];
+                        return ListTile(
+                          leading:
+                              const Icon(Icons.folder, color: Colors.amber),
+                          title: Text(list.name),
+                          subtitle: Text("${list.bookCount} buku"),
+                          onTap: () async {
+                            await _firestoreService.addBookToBookList(
+                                list.id, book);
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content:
+                                          Text("Ditambahkan ke ${list.name}")));
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
 
-  // REVISI: Menggunakan addReview dengan rating 0
-  Future<void> _sendComment() async {
-    if (_commentController.text.trim().isEmpty) return;
-
-    // Kita anggap komentar biasa sebagai Review dengan Rating 0
-    await _firestoreService.addReview(
-      book: widget.book,
-      rating: 0.0,
-      reviewText: _commentController.text.trim(),
+  Widget _radioOption(BookStatus status, String label, BookStatus current) {
+    return RadioListTile<BookStatus>(
+      title: Text(label),
+      value: status,
+      groupValue: current,
+      activeColor: _primaryColor,
+      contentPadding: EdgeInsets.zero,
+      onChanged: (val) {
+        Navigator.pop(context);
+        if (val != null)
+          _firestoreService.saveBookToReadingList(widget.book, val);
+      },
     );
-
-    _commentController.clear();
-    FocusScope.of(context).unfocus();
   }
 
   Future<void> _launchPlayStore() async {
     if (widget.book.infoLink.isEmpty) return;
     final Uri url = Uri.parse(widget.book.infoLink);
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      // Handle error
-    }
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {}
   }
 
   @override
@@ -124,7 +180,6 @@ class _DetailScreenState extends State<DetailScreen> {
       backgroundColor: Colors.white,
       body: CustomScrollView(
         slivers: [
-          // ... (SliverAppBar TETAP SAMA) ...
           SliverAppBar(
             expandedHeight: 350,
             pinned: true,
@@ -134,18 +189,17 @@ class _DetailScreenState extends State<DetailScreen> {
               StreamBuilder<BookStatus>(
                 stream: _firestoreService.getBookStatusStream(widget.book.id),
                 builder: (context, snapshot) {
-                  final currentStatus = snapshot.data ?? BookStatus.none;
+                  final status = snapshot.data ?? BookStatus.none;
                   return IconButton(
                     icon: Icon(
-                      currentStatus != BookStatus.none
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      color: currentStatus != BookStatus.none
-                          ? _primaryColor
-                          : Colors.black87,
-                    ),
-                    onPressed: () => _showStatusSelectionModal(
-                        context, widget.book, currentStatus),
+                        status != BookStatus.none
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        color: status != BookStatus.none
+                            ? _primaryColor
+                            : Colors.black87),
+                    onPressed: () =>
+                        _showStatusSelectionModal(context, widget.book, status),
                   );
                 },
               ),
@@ -171,30 +225,26 @@ class _DetailScreenState extends State<DetailScreen> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
+                                  color: Colors.black12,
                                   blurRadius: 15,
                                   offset: const Offset(0, 8))
                             ],
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(widget.book.thumbnailUrl,
-                                fit: BoxFit.cover),
-                          ),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(widget.book.thumbnailUrl,
+                                  fit: BoxFit.cover)),
                         ),
                         const SizedBox(height: 16),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text(widget.book.title,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87)),
-                        ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(widget.book.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold))),
                         Text(widget.book.author,
-                            style: TextStyle(
-                                fontSize: 14, color: Colors.grey[600])),
+                            style: TextStyle(color: Colors.grey[600])),
                       ],
                     ),
                   ),
@@ -202,33 +252,27 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
             ),
           ),
-
           SliverToBoxAdapter(
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                          child: OutlinedButton(
-                              onPressed: () {}, child: const Text("Sample"))),
-                      const SizedBox(width: 10),
-                      Expanded(
+                  Row(children: [
+                    Expanded(
+                        child: OutlinedButton(
+                            onPressed: () {}, child: const Text("Sample"))),
+                    const SizedBox(width: 10),
+                    Expanded(
                         child: ElevatedButton(
-                          onPressed: _launchPlayStore,
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: _primaryColor,
-                              foregroundColor: Colors.white),
-                          child: const Text("Beli Ebook"),
-                        ),
-                      ),
-                    ],
-                  ),
+                            onPressed: _launchPlayStore,
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryColor,
+                                foregroundColor: Colors.white),
+                            child: const Text("Beli Ebook"))),
+                  ]),
                   const SizedBox(height: 24),
-
-                  const Text("Tentang Buku Ini",
+                  const Text("Tentang Buku",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
@@ -236,13 +280,10 @@ class _DetailScreenState extends State<DetailScreen> {
                       style: TextStyle(color: Colors.grey[700], height: 1.6),
                       textAlign: TextAlign.justify),
                   const SizedBox(height: 32),
-
                   const Text("Diskusi & Review",
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-
-                  // REVISI: StreamBuilder menggunakan getBookReviews (Model Review)
                   StreamBuilder<List<Review>>(
                     stream: _firestoreService.getBookReviews(widget.book.id),
                     builder: (context, snapshot) {
@@ -251,64 +292,51 @@ class _DetailScreenState extends State<DetailScreen> {
                           padding: const EdgeInsets.all(20),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: const Text(
-                              "Belum ada diskusi. Mulai sekarang!",
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12)),
+                          child: const Text("Belum ada diskusi.",
                               style: TextStyle(color: Colors.grey)),
                         );
                       }
-                      var reviews = snapshot.data!;
                       return ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: reviews.length,
+                        itemCount: snapshot.data!.length,
                         itemBuilder: (context, index) {
-                          final review = reviews[index];
+                          final review = snapshot.data![index];
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.grey.withOpacity(0.1),
-                                    blurRadius: 4)
-                              ],
-                            ),
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      blurRadius: 4)
+                                ]),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      review
-                                          .username, // Sekarang kita punya Username!
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13),
-                                    ),
-                                    // Tampilkan bintang jika rating > 0
-                                    if (review.rating > 0)
-                                      Row(
-                                        children: [
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(review.username,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13)),
+                                      if (review.rating > 0)
+                                        Row(children: [
                                           const Icon(Icons.star,
                                               size: 14, color: Colors.amber),
                                           Text(" ${review.rating}",
-                                              style: const TextStyle(
-                                                  fontSize: 12)),
-                                        ],
-                                      ),
-                                  ],
-                                ),
+                                              style:
+                                                  const TextStyle(fontSize: 12))
+                                        ]),
+                                    ]),
                                 const SizedBox(height: 4),
-                                Text(review.reviewText,
-                                    style: TextStyle(color: Colors.grey[800])),
+                                Text(review.reviewText),
                               ],
                             ),
                           );
@@ -317,26 +345,19 @@ class _DetailScreenState extends State<DetailScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // Input Komentar
-                  Row(
-                    children: [
-                      Expanded(
+                  Row(children: [
+                    Expanded(
                         child: TextField(
-                          controller: _commentController,
-                          decoration: const InputDecoration(
-                              hintText: "Tulis pendapatmu..."),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
+                            controller: _commentController,
+                            decoration: const InputDecoration(
+                                hintText: "Tulis pendapatmu..."))),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
                         onPressed: _sendComment,
                         icon: const Icon(Icons.send),
                         style: IconButton.styleFrom(
-                            backgroundColor: _primaryColor),
-                      ),
-                    ],
-                  ),
+                            backgroundColor: _primaryColor)),
+                  ]),
                   const SizedBox(height: 40),
                 ],
               ),

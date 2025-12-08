@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import '../models/book_model.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
+import 'detail_screen.dart'; // Pastikan import DetailScreen ada
 
-// --- HALAMAN 1: PENCARIAN (Sesuai Screenshot Anda) ---
+// --- HALAMAN 1: PENCARIAN ---
 class LogSearchPage extends StatefulWidget {
-  const LogSearchPage({super.key});
+  // Parameter untuk menentukan mode pencarian
+  final bool isGeneralSearch;
+
+  const LogSearchPage({super.key, this.isGeneralSearch = false});
 
   @override
   State<LogSearchPage> createState() => _LogSearchPageState();
@@ -18,7 +22,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
   List<Book> _searchResults = [];
   bool _isSearching = false;
 
-  // Dummy Recent Searches (Biar mirip screenshot)
+  // Dummy Recent Searches
   final List<String> _recentSearches = [
     "Laut Bercerita",
     "Atomic Habits",
@@ -44,18 +48,27 @@ class _LogSearchPageState extends State<LogSearchPage> {
     }
   }
 
-  void _goToReviewForm(Book book) {
-    // Pindah ke Halaman Form Review
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
-    );
+  // Fungsi saat buku diklik
+  void _onBookTap(Book book) {
+    if (widget.isGeneralSearch) {
+      // MODE 1: Buka Detail Buku (Untuk Add to BookList)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
+      );
+    } else {
+      // MODE 2: Buka Form Review (Log a Book) - Default
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Tema Putih
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -66,11 +79,13 @@ class _LogSearchPageState extends State<LogSearchPage> {
         titleSpacing: 0,
         title: TextField(
           controller: _searchController,
-          autofocus: true, // Langsung muncul keyboard
-          onChanged: _searchBooks, // Live Search saat ngetik
-          decoration: const InputDecoration(
-            hintText: "Name of book...", // Sesuai screenshot
-            hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
+          autofocus: true,
+          onChanged: _searchBooks,
+          decoration: InputDecoration(
+            // Hint text berubah sesuai mode
+            hintText:
+                widget.isGeneralSearch ? "Cari buku..." : "Name of book...",
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 18),
             border: InputBorder.none,
           ),
           style: const TextStyle(fontSize: 18, color: Colors.black),
@@ -139,7 +154,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
           ),
           title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(book.author, maxLines: 1),
-          onTap: () => _goToReviewForm(book),
+          onTap: () => _onBookTap(book), // Panggil fungsi _onBookTap yang baru
         );
       },
     );
@@ -147,7 +162,6 @@ class _LogSearchPageState extends State<LogSearchPage> {
 }
 
 // --- HALAMAN 2: FORM REVIEW (Letterboxd Style) ---
-// Dipisah class-nya biar rapi
 class LogFormPage extends StatefulWidget {
   final Book book;
   const LogFormPage({super.key, required this.book});
@@ -157,7 +171,7 @@ class LogFormPage extends StatefulWidget {
 }
 
 class _LogFormPageState extends State<LogFormPage> {
-  bool _isSubmitting = false; // Tambahkan ini di bawah controller
+  bool _isSubmitting = false;
   double _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
 
@@ -169,17 +183,16 @@ class _LogFormPageState extends State<LogFormPage> {
       return;
     }
 
-    setState(() => _isSubmitting = true); // Mulai Loading
+    setState(() => _isSubmitting = true);
 
     try {
-      // Panggil Service yang baru kita buat
       await FirestoreService().addReview(
         book: widget.book,
         rating: _rating,
         reviewText: _reviewController.text,
       );
 
-      if (!mounted) return; // Cek apakah layar masih aktif
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -188,15 +201,14 @@ class _LogFormPageState extends State<LogFormPage> {
         ),
       );
 
-      // Tutup halaman Form & Search (Balik ke Home)
-      Navigator.pop(context);
-      Navigator.pop(context);
+      Navigator.pop(context); // Tutup Form
+      Navigator.pop(context); // Tutup Search
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal menyimpan: $e")),
       );
     } finally {
-      if (mounted) setState(() => _isSubmitting = false); // Stop Loading
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -218,14 +230,19 @@ class _LogFormPageState extends State<LogFormPage> {
         ),
         actions: [
           TextButton(
-            onPressed: _saveReview,
-            child: const Text(
-              "Save",
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Color(0xFF5C6BC0)),
-            ),
+            onPressed: _isSubmitting ? null : _saveReview,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text(
+                    "Save",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF5C6BC0)),
+                  ),
           ),
         ],
       ),
