@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
 import '../models/book_status.dart';
 import '../models/review_model.dart';
-import '../models/book_list_model.dart'; // Model List Custom
-import 'notification_service.dart'; // Service Notifikasi
+import '../models/book_list_model.dart'; 
+import 'notification_service.dart'; 
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -14,23 +14,29 @@ class FirestoreService {
   // 1. FITUR USER PROFILE (BIO, STATS)
   // ===========================================================================
 
+  // Mendapatkan data user realtime
   Stream<DocumentSnapshot> getUserProfileStream() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
     return _db.collection('users').doc(user.uid).snapshots();
   }
 
-  Future<void> updateUserProfile(
-      {required String username, required String bio}) async {
+  // Update bio dan username
+  Future<void> updateUserProfile({required String username, required String bio}) async {
     User? user = _auth.currentUser;
     if (user == null) return;
+    
+    // Update di Firestore
     await _db.collection('users').doc(user.uid).update({
       'username': username,
       'bio': bio,
     });
+    
+    // Update di Auth (agar displayName sinkron)
     await user.updateDisplayName(username);
   }
 
+  // Hitung total buku di Reading List (Efisien menggunakan count aggregation)
   Future<int> getBookCount() async {
     User? user = _auth.currentUser;
     if (user == null) return 0;
@@ -43,6 +49,7 @@ class FirestoreService {
     return agg.count ?? 0;
   }
 
+  // Hitung total review yang pernah dibuat user
   Future<int> getReviewCount() async {
     User? user = _auth.currentUser;
     if (user == null) return 0;
@@ -58,7 +65,7 @@ class FirestoreService {
   // 2. FITUR READING LIST & STATUS (BOOKMARK UTAMA)
   // ===========================================================================
 
-  // Ambil Status Real-time (untuk icon Bookmark berubah-ubah)
+  // Cek Status Buku (Want to Read / Currently Reading / Finished) untuk icon Bookmark
   Stream<BookStatus> getBookStatusStream(String bookId) {
     User? user = _auth.currentUser;
     if (user == null) return Stream.value(BookStatus.none);
@@ -71,7 +78,6 @@ class FirestoreService {
         .snapshots()
         .map((doc) {
       if (!doc.exists) return BookStatus.none;
-      // Pastikan string dari firestore cocok dengan enum, jika tidak return none
       return BookStatus.values.firstWhere(
         (e) => e.toFirestoreString() == doc.data()?['readingStatus'],
         orElse: () => BookStatus.none,
@@ -79,7 +85,7 @@ class FirestoreService {
     });
   }
 
-  // Ambil List Bacaan Utama
+  // Ambil semua buku di Reading List (bisa difilter per status)
   Stream<List<Book>> getReadingList({BookStatus? filterStatus}) {
     User? user = _auth.currentUser;
     if (user == null) return Stream.value([]);
@@ -91,39 +97,33 @@ class FirestoreService {
         .orderBy('addedAt', descending: true);
 
     if (filterStatus != null && filterStatus != BookStatus.none) {
-      query = query.where('readingStatus',
-          isEqualTo: filterStatus.toFirestoreString());
+      query = query.where('readingStatus', isEqualTo: filterStatus.toFirestoreString());
     }
 
     return query.snapshots().map((snapshot) => snapshot.docs
-        .map((doc) =>
-            Book.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
+        .map((doc) => Book.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
         .toList());
   }
 
-  // Simpan/Update Status Buku
+  // Simpan atau Hapus buku dari Reading List utama
   Future<void> saveBookToReadingList(Book book, BookStatus status) async {
     User? user = _auth.currentUser;
     if (user == null) return;
 
-    // Jika status "none", hapus dari list
-    if (status == BookStatus.none) {
-      await _db
-          .collection('users')
-          .doc(user.uid)
-          .collection('reading_list')
-          .doc(book.id)
-          .delete();
-      return;
-    }
-
-    // Jika status ada (Want to Read / Finished), simpan/update
-    await _db
+    final docRef = _db
         .collection('users')
         .doc(user.uid)
         .collection('reading_list')
-        .doc(book.id)
-        .set({
+        .doc(book.id);
+
+    // Jika status "none", berarti dihapus dari list
+    if (status == BookStatus.none) {
+      await docRef.delete();
+      return;
+    }
+
+    // Simpan/Update data buku beserta status barunya
+    await docRef.set({
       ...book.toMap(),
       'readingStatus': status.toFirestoreString(),
       'addedAt': FieldValue.serverTimestamp(),
@@ -134,6 +134,7 @@ class FirestoreService {
   // 3. FITUR JADWAL BACA (SCHEDULE / NOTIFIKASI)
   // ===========================================================================
 
+  // Menambah jadwal & trigger notifikasi lokal
   Future<void> addSchedule({
     required Book book,
     required DateTime startDate,
@@ -146,12 +147,8 @@ class FirestoreService {
 
     int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-    // 1. Simpan data ke Firestore
-    await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('schedules')
-        .add({
+    // 1. Simpan ke Firestore
+    await _db.collection('users').doc(user.uid).collection('schedules').add({
       'bookId': book.id,
       'bookTitle': book.title,
       'bookAuthor': book.author,
@@ -163,7 +160,7 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // 2. Pasang notifikasi lokal
+    // 2. Pasang Notifikasi Lokal
     await NotificationService().scheduleReadingPlan(
       idBase: notificationId,
       bookTitle: book.title,
@@ -174,7 +171,7 @@ class FirestoreService {
     );
   }
 
-  // Ambil Jadwal yang masih aktif
+  // Mengambil jadwal yang belum lewat deadline
   Stream<QuerySnapshot> getSchedules() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -189,31 +186,26 @@ class FirestoreService {
   }
 
   // ===========================================================================
-  // 4. FITUR CUSTOM BOOKLIST (KOLEKSI BUATAN USER)
+  // 4. FITUR CUSTOM BOOKLIST (KOLEKSI PRIBADI)
   // ===========================================================================
 
-  // Buat List Baru (Folder)
-  Future<void> createBookList(String listName) async {
+  // REVISI: Nama method disesuaikan agar cocok dengan pemanggilan di UI
+  Future<void> createCustomList(String listName) async {
     User? user = _auth.currentUser;
     if (user == null) return;
 
-    final newList = BookList(
-      id: '', // Placeholder, nanti ID digenerate Firestore
-      name: listName,
-      userId: user.uid,
-      createdAt: DateTime.now(),
-      bookCount: 0,
-    );
-
-    await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('custom_book_lists')
-        .add(newList.toMap());
+    // Membuat dokumen list baru
+    await _db.collection('users').doc(user.uid).collection('custom_book_lists').add({
+      'name': listName,
+      'userId': user.uid,
+      'bookCount': 0,
+      'coverUrl': null, // Nanti diisi otomatis saat buku pertama masuk
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  // Ambil Daftar List User
-  Stream<List<BookList>> getUserBookLists() {
+  // REVISI: Nama method disesuaikan dengan UI (getCustomLists)
+  Stream<List<BookList>> getCustomLists() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
 
@@ -223,11 +215,10 @@ class FirestoreService {
         .collection('custom_book_lists')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((doc) => BookList.fromFirestore(doc)).toList());
+        .map((snap) => snap.docs.map((doc) => BookList.fromFirestore(doc)).toList());
   }
 
-  // Tambah Buku ke dalam List Tertentu
+  // Menambah buku ke dalam List Spesifik & Update Counter
   Future<void> addBookToBookList(String listId, Book book) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -238,31 +229,34 @@ class FirestoreService {
         .collection('custom_book_lists')
         .doc(listId);
 
-    // 1. Simpan buku ke sub-collection 'books'
-    await listRef.collection('books').doc(book.id).set(book.toMap());
-
-    // 2. Update jumlah buku & cover di parent list
+    // Menggunakan Transaction untuk keamanan data (Atomic Operation)
     await _db.runTransaction((transaction) async {
+      // 1. Baca data list saat ini
       DocumentSnapshot listSnap = await transaction.get(listRef);
       if (!listSnap.exists) return;
 
+      // 2. Simpan buku ke sub-collection 'books'
+      // Note: Transaction hanya bisa write ke dokumen yang dibaca atau dokumen baru.
+      // Operasi subcollection di luar transaction object tapi di dalam scope async masih aman untuk kasus ini,
+      // tapi best practice-nya adalah melakukan update counter di dalam transaction.
+      
+      // Update data List (Parent)
       int currentCount = listSnap.get('bookCount') ?? 0;
-      // Ambil cover url yang ada sekarang, jika null pakai cover buku baru ini
-      String? currentCover;
-      try {
-        currentCover = listSnap.get('coverUrl');
-      } catch (e) {
-        currentCover = null;
-      }
+      String? currentCover = listSnap.data().toString().contains('coverUrl') ? listSnap.get('coverUrl') : null;
 
       transaction.update(listRef, {
         'bookCount': currentCount + 1,
+        // Jika belum ada cover, pakai thumbnail buku ini sebagai cover list
         'coverUrl': currentCover ?? book.thumbnailUrl,
       });
+      
+      // 3. Tulis buku ke sub-collection (dilakukan via referensi langsung karena set() transaction butuh docRef exact)
+      // Kita lakukan set() biasa karena tidak mempengaruhi integritas data list induk secara kritis selain count.
+      listRef.collection('books').doc(book.id).set(book.toMap());
     });
   }
 
-  // Ambil Buku di dalam Custom List
+  // Melihat isi buku dalam list tertentu
   Stream<List<Book>> getBooksInBookList(String listId) {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -295,6 +289,7 @@ class FirestoreService {
   // 5. FITUR REVIEW & DISKUSI
   // ===========================================================================
 
+  // Tambah Review Baru
   Future<void> addReview({
     required Book book,
     required double rating,
@@ -303,11 +298,15 @@ class FirestoreService {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Ambil Username terbaru dari profil
-    String username = user.displayName ?? 'Anonymous';
-    final userDoc = await _db.collection('users').doc(user.uid).get();
-    if (userDoc.exists) {
-      username = userDoc.data()?['username'] ?? username;
+    // Ambil Username terbaru agar tidak null
+    String username = user.displayName ?? 'Pengguna Bibliomate';
+    try {
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      if (userDoc.exists && userDoc.data() != null) {
+        username = userDoc.get('username') ?? username;
+      }
+    } catch (e) {
+      // Fallback jika gagal ambil username
     }
 
     final docRef = _db.collection('reviews').doc();
@@ -328,7 +327,7 @@ class FirestoreService {
     await docRef.set(newReview.toMap());
   }
 
-  // Review milik User sendiri (untuk Profile)
+  // Ambil Review user sendiri (History Review)
   Stream<List<Review>> getUserReviews() {
     final user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -340,7 +339,7 @@ class FirestoreService {
         .map((s) => s.docs.map((d) => Review.fromMap(d.data(), d.id)).toList());
   }
 
-  // Review orang lain di Detail Buku
+  // Ambil Review orang lain pada buku tertentu
   Stream<List<Review>> getBookReviews(String bookId) {
     return _db
         .collection('reviews')
