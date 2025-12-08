@@ -3,7 +3,7 @@ import '../models/book_list_model.dart';
 import '../models/book_model.dart';
 import '../services/firestore_service.dart';
 import 'detail_screen.dart';
-import 'log_search_page.dart'; // Import halaman search
+import 'log_search_page.dart'; // Pastikan import ini
 
 class BookListDetailScreen extends StatelessWidget {
   final BookList bookList;
@@ -12,6 +12,17 @@ class BookListDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FirestoreService firestoreService = FirestoreService();
+
+    // Fungsi Navigasi ke Search Page dengan ID BookList
+    void goToAddBooks() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          // KITA PASSING ID BOOKLIST DI SINI
+          builder: (_) => LogSearchPage(targetBookListId: bookList.id),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -29,7 +40,7 @@ class BookListDetailScreen extends StatelessWidget {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text("Hapus BookList?"),
-                  content: const Text("Daftar buku ini akan dihapus permanen."),
+                  content: const Text("Daftar ini akan dihapus permanen."),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx),
@@ -50,6 +61,14 @@ class BookListDetailScreen extends StatelessWidget {
           )
         ],
       ),
+
+      // TOMBOL TAMBAH MELAYANG (FAB)
+      floatingActionButton: FloatingActionButton(
+        onPressed: goToAddBooks,
+        backgroundColor: const Color(0xFF5C6BC0),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+
       body: StreamBuilder<List<Book>>(
         stream: firestoreService.getBooksInBookList(bookList.id),
         builder: (context, snapshot) {
@@ -58,34 +77,26 @@ class BookListDetailScreen extends StatelessWidget {
           }
           final books = snapshot.data ?? [];
 
-          // --- BAGIAN INI YANG KITA UPDATE UNTUK HANDLE EMPTY STATE ---
+          // TAMPILAN KOSONG
           if (books.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.library_books_outlined,
-                      size: 64, color: Colors.grey[300]),
+                  Icon(Icons.playlist_add, size: 64, color: Colors.grey[300]),
                   const SizedBox(height: 16),
                   const Text("BookList ini masih kosong.",
                       style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 12),
 
-                  // Tombol Cari Buku
-                  TextButton(
-                    onPressed: () {
-                      // Navigasi ke LogSearchPage dengan mode General Search
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const LogSearchPage(isGeneralSearch: true),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      "Cari buku untuk ditambahkan",
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  // Tombol di tengah layar (alternatif FAB)
+                  OutlinedButton.icon(
+                    onPressed: goToAddBooks,
+                    icon: const Icon(Icons.search),
+                    label: const Text("Cari buku untuk ditambahkan"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF5C6BC0),
+                      side: const BorderSide(color: Color(0xFF5C6BC0)),
                     ),
                   ),
                 ],
@@ -93,6 +104,7 @@ class BookListDetailScreen extends StatelessWidget {
             );
           }
 
+          // TAMPILAN LIST BUKU
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: books.length,
@@ -110,8 +122,11 @@ class BookListDetailScreen extends StatelessWidget {
                 title: Text(book.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(book.author, maxLines: 1),
-                trailing: const Icon(Icons.arrow_forward_ios,
-                    size: 14, color: Colors.grey),
+
+                // Opsi Hapus Buku dari List (Bisa ditambah nanti)
+                trailing:
+                    const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+
                 onTap: () {
                   Navigator.push(
                       context,
