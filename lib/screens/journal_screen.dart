@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // Add package intl di pubspec
+import '../services/firestore_service.dart';
 
 class JournalScreen extends StatelessWidget {
   const JournalScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final FirestoreService firestoreService = FirestoreService();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          "My Journal",
+          "My Schedule", // Ganti Judul
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.bar_chart, color: Colors.black),
-              onPressed: () {}),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. HEADER READING STREAK (Jadwal Baca)
-            Container(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. HEADER READING STREAK (Tetap Dipertahankan)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -71,14 +71,13 @@ class JournalScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Indikator Hari (Sen-Min)
+                  // Indikator Hari (Dummy Visual)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: ["M", "T", "W", "T", "F", "S", "S"]
                         .asMap()
                         .entries
                         .map((entry) {
-                      // Logic Dummy: Hari ke 0, 1, 3, 4, 6 aktif
                       bool isActive = [0, 1, 3, 4, 6].contains(entry.key);
                       return Column(
                         children: [
@@ -107,126 +106,144 @@ class JournalScreen extends StatelessWidget {
                 ],
               ),
             ),
+          ),
 
-            const SizedBox(height: 30),
-
-            // 2. RECENT ACTIVITY (Timeline)
-            const Text(
-              "Recent Activity",
+          // 2. JUDUL SECTION
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              "Upcoming Reading Plans",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
-            const SizedBox(height: 10),
-
-            // List Dummy Activity
-            _buildActivityItem(
-              bookTitle: "Atomic Habits",
-              action: "finished reading",
-              time: "2 hours ago",
-              color: Colors.green,
-            ),
-            _buildActivityItem(
-              bookTitle: "Laut Bercerita",
-              action: "rated 5 stars",
-              time: "Yesterday",
-              color: Colors.amber,
-              icon: Icons.star,
-            ),
-            _buildActivityItem(
-              bookTitle: "Sapiens",
-              action: "added to wishlist",
-              time: "2 days ago",
-              color: Colors.blue,
-              icon: Icons.bookmark,
-            ),
-            _buildActivityItem(
-              bookTitle: "Dunia Sophie",
-              action: "started reading",
-              time: "3 days ago",
-              color: Colors.purple,
-              icon: Icons.book,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityItem({
-    required String bookTitle,
-    required String action,
-    required String time,
-    required Color color,
-    IconData icon = Icons.check_circle,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        children: [
-          // Garis Timeline
-          Column(
-            children: [
-              Container(
-                width: 2,
-                height: 10,
-                color: Colors.grey[300],
-              ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 16, color: color),
-              ),
-              Container(
-                width: 2,
-                height: 30,
-                color: Colors.grey[300],
-              ),
-            ],
           ),
-          const SizedBox(width: 16),
-          // Text Content
+          const SizedBox(height: 10),
+
+          // 3. LIST JADWAL (Infinite Stream)
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade100),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.grey.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      style:
-                          const TextStyle(color: Colors.black87, fontSize: 14),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: firestoreService.getSchedules(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const TextSpan(text: "You "),
-                        TextSpan(
-                            text: action,
-                            style: TextStyle(
-                                color: color, fontWeight: FontWeight.bold)),
-                        const TextSpan(text: " "),
-                        TextSpan(
-                            text: bookTitle,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
+                        Icon(Icons.event_busy,
+                            size: 60, color: Colors.grey[300]),
+                        const SizedBox(height: 10),
+                        const Text("Belum ada jadwal baca.",
+                            style: TextStyle(color: Colors.grey)),
+                        TextButton(
+                          onPressed: () {
+                            // Logic untuk arahkan ke explore jika mau
+                          },
+                          child: const Text("Cari buku untuk dijadwal"),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(time,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                ],
-              ),
+                  );
+                }
+
+                final schedules = snapshot.data!.docs;
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  itemCount: schedules.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final data = schedules[index].data() as Map<String, dynamic>;
+                    final Timestamp ts = data['scheduledTime'];
+                    final DateTime date = ts.toDate();
+                    final String formattedDate =
+                        DateFormat('EEE, d MMM y').format(date);
+                    final String formattedTime =
+                        DateFormat('HH:mm').format(date);
+
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          // Cover Buku
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              data['thumbnailUrl'] ?? '',
+                              width: 50,
+                              height: 75,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                  width: 50, height: 75, color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Detail Jadwal
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['bookTitle'] ?? 'No Title',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today,
+                                        size: 14, color: Color(0xFF5C6BC0)),
+                                    const SizedBox(width: 6),
+                                    Text(formattedDate,
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[700])),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.access_time,
+                                        size: 14, color: Color(0xFF5C6BC0)),
+                                    const SizedBox(width: 6),
+                                    Text("Pukul $formattedTime",
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF5C6BC0))),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Icon Lonceng
+                          const Icon(Icons.notifications_active_outlined,
+                              color: Colors.grey),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],

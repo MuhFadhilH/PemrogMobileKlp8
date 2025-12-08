@@ -3,11 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/book_model.dart';
 import '../models/review_model.dart';
-import '../models/book_list_model.dart'; // Import Model Baru
+import '../models/book_list_model.dart'; 
 import '../services/firestore_service.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
-import 'book_list_detail_screen.dart'; // Import Screen Detail Baru
+import 'book_list_detail_screen.dart'; 
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -78,11 +78,12 @@ class ProfileScreen extends StatelessWidget {
                                 right: 0,
                                 child: GestureDetector(
                                   onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => EditProfileScreen(
-                                              currentName: username,
-                                              currentBio: bio))),
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => EditProfileScreen(
+                                            currentName: username,
+                                            currentBio: bio)),
+                                  ),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: const BoxDecoration(
@@ -139,7 +140,7 @@ class ProfileScreen extends StatelessWidget {
                     tabs: [
                       Tab(text: "Reviews"),
                       Tab(text: "My BookLists")
-                    ], // Ubah Tab Name
+                    ], 
                   ),
                 ),
                 pinned: true,
@@ -149,7 +150,7 @@ class ProfileScreen extends StatelessWidget {
           body: const TabBarView(
             children: [
               _ReviewsTab(),
-              _MyBookListsTab(), // Tab Baru
+              _MyBookListsTab(), 
             ],
           ),
         ),
@@ -281,7 +282,7 @@ class _ReviewsTab extends StatelessWidget {
   }
 }
 
-// --- TAB 2: MY BOOKLISTS (GANTINYA PLAYLIST) ---
+// --- TAB 2: MY BOOKLISTS ---
 class _MyBookListsTab extends StatelessWidget {
   const _MyBookListsTab();
 
@@ -304,7 +305,8 @@ class _MyBookListsTab extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
-                await FirestoreService().createBookList(controller.text.trim());
+                // FIX: Menggunakan createCustomList
+                await FirestoreService().createCustomList(controller.text.trim());
                 if (context.mounted) Navigator.pop(context);
               }
             },
@@ -319,8 +321,9 @@ class _MyBookListsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final firestoreService = FirestoreService();
 
+    // FIX: Menggunakan getCustomLists
     return StreamBuilder<List<BookList>>(
-      stream: firestoreService.getUserBookLists(),
+      stream: firestoreService.getCustomLists(), 
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting)
           return const Center(child: CircularProgressIndicator());
