@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Review {
   final String id;
   final String userId;
+  final String username; // <--- Field Baru
   final String bookId;
   final String bookTitle;
   final String bookAuthor;
@@ -14,6 +15,7 @@ class Review {
   Review({
     required this.id,
     required this.userId,
+    required this.username, // <--- Required
     required this.bookId,
     required this.bookTitle,
     required this.bookAuthor,
@@ -23,11 +25,11 @@ class Review {
     required this.createdAt,
   });
 
-  // Mengubah Data Firebase (Map) menjadi Object Dart
   factory Review.fromMap(Map<String, dynamic> map, String id) {
     return Review(
       id: id,
       userId: map['userId'] ?? '',
+      username: map['username'] ?? 'Anonymous', // <--- Default
       bookId: map['bookId'] ?? '',
       bookTitle: map['bookTitle'] ?? '',
       bookAuthor: map['bookAuthor'] ?? '',
@@ -38,10 +40,10 @@ class Review {
     );
   }
 
-  // Mengubah Object Dart menjadi Data Firebase (Map) untuk disimpan
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
+      'username': username, // <--- Simpan ke Firestore
       'bookId': bookId,
       'bookTitle': bookTitle,
       'bookAuthor': bookAuthor,
