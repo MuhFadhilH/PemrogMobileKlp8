@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../models/book_model.dart';
 import '../../../services/api_service.dart';
-// import '../../services/firestore_service.dart'; // Nanti diaktifkan saat save
+import '../../../services/firestore_service.dart'; // Sudah diaktifkan
 
 class LogBookModal extends StatefulWidget {
-  const LogBookModal({super.key});
+  // Tambahkan parameter opsional ini
+  final Book? preSelectedBook;
+
+  const LogBookModal({super.key, this.preSelectedBook});
 
   @override
   State<LogBookModal> createState() => _LogBookModalState();
@@ -14,6 +17,8 @@ class _LogBookModalState extends State<LogBookModal> {
   // State untuk Pencarian
   final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
+  final FirestoreService _firestoreService = FirestoreService(); // Instance Firestore
+
   List<Book> _searchResults = [];
   bool _isSearching = false;
 
@@ -21,6 +26,16 @@ class _LogBookModalState extends State<LogBookModal> {
   Book? _selectedBook;
   double _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
+  bool _isSubmitting = false; // Loading saat simpan
+
+  @override
+  void initState() {
+    super.initState();
+    // LOGIKA UTAMA: Cek apakah ada buku yang dikirim dari DetailScreen
+    if (widget.preSelectedBook != null) {
+      _selectedBook = widget.preSelectedBook;
+    }
+  }
 
   // 1. FUNGSI CARI BUKU
   Future<void> _searchBooks() async {
@@ -31,22 +46,21 @@ class _LogBookModalState extends State<LogBookModal> {
       final results = await _apiService.fetchBooks(_searchController.text);
       setState(() => _searchResults = results);
     } catch (e) {
-      // Handle error tipis-tipis
       debugPrint("Error: $e");
     } finally {
       setState(() => _isSearching = false);
     }
   }
 
-  // 2. FUNGSI SAAT BUKU DIPILIH
+  // 2. FUNGSI SAAT BUKU DIPILIH (Dari Search)
   void _onBookSelected(Book book) {
     setState(() {
-      _selectedBook = book; // Ini akan memicu perubahan UI ke mode "Form"
+      _selectedBook = book;
     });
   }
 
   // 3. FUNGSI SIMPAN (CRUD CREATE)
-  void _submitReview() {
+  Future<void> _submitReview() async {
     if (_rating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Jangan lupa kasih bintang! ⭐")),
@@ -54,27 +68,43 @@ class _LogBookModalState extends State<LogBookModal> {
       return;
     }
 
-    // TODO: Panggil FirestoreService.addReview di sini
-    // Data yang dikirim: _selectedBook, _rating, _reviewController.text
+    setState(() => _isSubmitting = true);
 
-    Navigator.pop(context); // Tutup modal
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text("Review '${_selectedBook!.title}' berhasil disimpan!")),
-    );
+    try {
+      // Panggil FirestoreService untuk simpan review
+      await _firestoreService.addReview(
+        book: _selectedBook!,
+        rating: _rating,
+        reviewText: _reviewController.text,
+      );
+
+      if (!mounted) return;
+      
+      Navigator.pop(context); // Tutup modal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Review '${_selectedBook!.title}' berhasil disimpan!"),
+          backgroundColor: const Color(0xFF5C6BC0),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal menyimpan: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Tinggi modal menyesuaikan keyboard
     return Container(
       padding: EdgeInsets.only(
           top: 24,
           left: 24,
           right: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom +
-              24 // Biar gak ketutup keyboard
-          ),
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24),
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -83,7 +113,7 @@ class _LogBookModalState extends State<LogBookModal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Indikator Geser (Garis kecil di atas)
+          // Indikator Geser
           Center(
             child: Container(
               width: 40,
@@ -96,7 +126,7 @@ class _LogBookModalState extends State<LogBookModal> {
             ),
           ),
 
-          // LOGIKA UI: Tampilkan Form Review jika buku sudah dipilih
+          // LOGIKA UI: Tampilkan Form Review jika buku sudah dipilih (atau dikirim dari Detail)
           if (_selectedBook != null) _buildReviewForm() else _buildSearchUI(),
         ],
       ),
@@ -118,9 +148,9 @@ class _LogBookModalState extends State<LogBookModal> {
           // Search Bar
           TextField(
             controller: _searchController,
-            autofocus: true, // Keyboard langsung muncul
+            autofocus: true,
             textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _searchBooks(), // Cari saat tekan Enter
+            onSubmitted: (_) => _searchBooks(),
             decoration: InputDecoration(
               hintText: "Cari judul, penulis, atau ISBN...",
               prefixIcon: const Icon(Icons.search),
@@ -179,20 +209,27 @@ class _LogBookModalState extends State<LogBookModal> {
     );
   }
 
-  // --- TAMPILAN 2: FORM REVIEW (Letterboxd Style) ---
+  // --- TAMPILAN 2: FORM REVIEW ---
   Widget _buildReviewForm() {
-    // Kita pakai tanggal hari ini sebagai default
     String dateLabel = "Today";
 
     return Expanded(
       child: Column(
         children: [
-          // Header: Back Button & Title
+          // Header
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                onPressed: () => setState(() => _selectedBook = null),
+                // Jika preSelectedBook ada (dari Detail), Back = Tutup Modal
+                // Jika tidak (dari Search), Back = Kembali ke Search
+                onPressed: () {
+                  if (widget.preSelectedBook != null) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() => _selectedBook = null);
+                  }
+                },
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -202,13 +239,20 @@ class _LogBookModalState extends State<LogBookModal> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               const Spacer(),
-              TextButton(
-                onPressed: _submitReview,
-                child: const Text(
-                  "Save",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
+              _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : TextButton(
+                      onPressed: _submitReview,
+                      child: const Text(
+                        "Save",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
             ],
           ),
           const Divider(),
@@ -219,11 +263,10 @@ class _LogBookModalState extends State<LogBookModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // BAGIAN ATAS: Poster + Meta Data
+                  // Poster + Meta Data
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Poster Buku (Kiri)
                       Container(
                         width: 100,
                         height: 150,
@@ -247,10 +290,7 @@ class _LogBookModalState extends State<LogBookModal> {
                           ),
                         ),
                       ),
-
                       const SizedBox(width: 16),
-
-                      // 2. Meta Data (Kanan)
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +301,7 @@ class _LogBookModalState extends State<LogBookModal> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 18, // Judul Besar
+                                fontSize: 18,
                                 height: 1.2,
                               ),
                             ),
@@ -271,10 +311,7 @@ class _LogBookModalState extends State<LogBookModal> {
                               style: TextStyle(
                                   color: Colors.grey[600], fontSize: 14),
                             ),
-
                             const SizedBox(height: 16),
-
-                            // Tanggal Baca
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 8),
@@ -302,28 +339,24 @@ class _LogBookModalState extends State<LogBookModal> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 24),
 
-                  // BAGIAN TENGAH: Rating & Review
+                  // Rating
                   const Text("Rating",
                       style: TextStyle(
                           fontWeight: FontWeight.bold, color: Colors.grey)),
                   Row(
                     children: [
-                      // Bintang
                       Row(
                         children: List.generate(5, (index) {
                           return IconButton(
                             padding: EdgeInsets.zero,
-                            constraints:
-                                const BoxConstraints(), // Biar bintangnya rapet
+                            constraints: const BoxConstraints(),
                             icon: Icon(
                               index < _rating
                                   ? Icons.star_rounded
                                   : Icons.star_outline_rounded,
-                              color:
-                                  const Color(0xFF5C6BC0), // Warna Indigo/Biru
+                              color: const Color(0xFF5C6BC0),
                               size: 36,
                             ),
                             onPressed: () =>
@@ -332,13 +365,10 @@ class _LogBookModalState extends State<LogBookModal> {
                         }),
                       ),
                       const Spacer(),
-                      // Tombol Like (Heart)
                       IconButton(
                         icon: const Icon(Icons.favorite_border,
                             color: Colors.grey),
-                        onPressed: () {
-                          // Logic Like toggle nanti disini
-                        },
+                        onPressed: () {},
                       ),
                     ],
                   ),
@@ -347,20 +377,19 @@ class _LogBookModalState extends State<LogBookModal> {
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // Input Text Review (Tanpa Border biar bersih ala Notepad)
+                  // Review Text
                   TextField(
                     controller: _reviewController,
-                    maxLines: null, // Unlimited lines
+                    maxLines: null,
                     keyboardType: TextInputType.multiline,
                     decoration: const InputDecoration(
                       hintText: "Add a review...",
                       hintStyle: TextStyle(color: Colors.grey, fontSize: 16),
-                      border: InputBorder.none, // Hilangkan kotak
+                      border: InputBorder.none,
                     ),
                     style: const TextStyle(fontSize: 16, height: 1.5),
                   ),
-
-                  const SizedBox(height: 100), // Space bawah biar enak scroll
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
