@@ -363,3 +363,4 @@ class _LogFormPageState extends State<LogFormPage> {
     );
   }
 }
+ 
