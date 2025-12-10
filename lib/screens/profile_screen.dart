@@ -7,9 +7,19 @@ import '../services/firestore_service.dart';
 import 'login_page.dart';
 import 'edit_profile_screen.dart';
 import 'book_list_detail_screen.dart';
+import 'avatar_picker_screen.dart';
+import 'reading_list_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+  int _currentTabIndex = 0;
 
   void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
@@ -22,13 +32,34 @@ class ProfileScreen extends StatelessWidget {
     }
   }
 
+  void _handleStatClick(String type, BuildContext context) {
+    switch (type) {
+      case 'books':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ReadingListScreen()),
+        );
+        break;
+      case 'reviews':
+        setState(() {
+          _currentTabIndex = 0;
+        });
+        break;
+      case 'lists':
+        setState(() {
+          _currentTabIndex = 1;
+        });
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final firestoreService = FirestoreService();
 
     return DefaultTabController(
       length: 2,
+      initialIndex: _currentTabIndex,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -51,15 +82,19 @@ class ProfileScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: StreamBuilder<DocumentSnapshot>(
-                    stream: firestoreService.getUserProfileStream(),
+                    stream: _firestoreService.getUserProfileStream(),
                     builder: (context, snapshot) {
                       String bio = "Book enthusiast. Coffee lover. 📚☕";
                       String username = user?.displayName ?? "User";
+                      String avatarUrl =
+                          user?.photoURL ?? "assets/avatars/avatar1.png";
+
                       if (snapshot.hasData && snapshot.data!.exists) {
                         var data =
                             snapshot.data!.data() as Map<String, dynamic>;
                         bio = data['bio'] ?? bio;
                         username = data['username'] ?? username;
+                        avatarUrl = data['photoUrl'] ?? avatarUrl;
                       }
 
                       return Column(
@@ -69,8 +104,9 @@ class ProfileScreen extends StatelessWidget {
                               CircleAvatar(
                                 radius: 50,
                                 backgroundColor: Colors.grey[200],
-                                backgroundImage: NetworkImage(user?.photoURL ??
-                                    "https://i.pravatar.cc/300"),
+                                backgroundImage: avatarUrl.startsWith('assets/')
+                                    ? AssetImage(avatarUrl) as ImageProvider
+                                    : NetworkImage(avatarUrl),
                               ),
                               Positioned(
                                 bottom: 0,
@@ -79,15 +115,19 @@ class ProfileScreen extends StatelessWidget {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                        builder: (_) => EditProfileScreen(
-                                            currentName: username,
-                                            currentBio: bio)),
+                                      builder: (_) => EditProfileScreen(
+                                        currentName: username,
+                                        currentBio: bio,
+                                        currentAvatarUrl: avatarUrl,
+                                      ),
+                                    ),
                                   ),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: const BoxDecoration(
-                                        color: Color(0xFF5C6BC0),
-                                        shape: BoxShape.circle),
+                                      color: Color(0xFF5C6BC0),
+                                      shape: BoxShape.circle,
+                                    ),
                                     child: const Icon(Icons.edit,
                                         color: Colors.white, size: 16),
                                   ),
@@ -105,23 +145,46 @@ class ProfileScreen extends StatelessWidget {
                               textAlign: TextAlign.center),
                           const SizedBox(height: 24),
 
-                          // STATISTIK
+                          // STATISTIK YANG KLIKABLE
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              FutureBuilder<int>(
-                                future: firestoreService.getBookCount(),
-                                builder: (context, snap) => _StatItem(
+                              // BOOKS STAT
+                              GestureDetector(
+                                onTap: () => _handleStatClick('books', context),
+                                child: FutureBuilder<int>(
+                                  future: _firestoreService.getBookCount(),
+                                  builder: (context, snap) => _StatItem(
                                     label: "Books",
-                                    value: (snap.data ?? 0).toString()),
+                                    value: (snap.data ?? 0).toString(),
+                                  ),
+                                ),
                               ),
-                              FutureBuilder<int>(
-                                future: firestoreService.getReviewCount(),
-                                builder: (context, snap) => _StatItem(
+
+                              // REVIEWS STAT
+                              GestureDetector(
+                                onTap: () =>
+                                    _handleStatClick('reviews', context),
+                                child: FutureBuilder<int>(
+                                  future: _firestoreService.getReviewCount(),
+                                  builder: (context, snap) => _StatItem(
                                     label: "Reviews",
-                                    value: (snap.data ?? 0).toString()),
+                                    value: (snap.data ?? 0).toString(),
+                                  ),
+                                ),
                               ),
-                              const _StatItem(label: "Lists", value: "3"),
+
+                              // LISTS STAT
+                              GestureDetector(
+                                onTap: () => _handleStatClick('lists', context),
+                                child: FutureBuilder<int>(
+                                  future: _firestoreService.getBookListCount(),
+                                  builder: (context, snap) => _StatItem(
+                                    label: "Lists",
+                                    value: (snap.data ?? 0).toString(),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -136,10 +199,7 @@ class ProfileScreen extends StatelessWidget {
                     labelColor: Color(0xFF5C6BC0),
                     unselectedLabelColor: Colors.grey,
                     indicatorColor: Color(0xFF5C6BC0),
-                    tabs: [
-                      Tab(text: "Reviews"),
-                      Tab(text: "My BookListModels")
-                    ],
+                    tabs: [Tab(text: "Reviews"), Tab(text: "My BookLists")],
                   ),
                 ),
                 pinned: true,
@@ -149,7 +209,7 @@ class ProfileScreen extends StatelessWidget {
           body: const TabBarView(
             children: [
               _ReviewsTab(),
-              _MyBookListModelsTab(),
+              _MyBookListsTab(),
             ],
           ),
         ),
@@ -216,7 +276,7 @@ class _ReviewsTab extends StatelessWidget {
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(
-              child: Text("Belum ada aktivitas.",
+              child: Text("Belum ada review.",
                   style: TextStyle(color: Colors.grey)));
         }
         return ListView.builder(
@@ -282,8 +342,8 @@ class _ReviewsTab extends StatelessWidget {
 }
 
 // --- TAB 2: MY BOOK LISTS ---
-class _MyBookListModelsTab extends StatelessWidget {
-  const _MyBookListModelsTab();
+class _MyBookListsTab extends StatelessWidget {
+  const _MyBookListsTab();
 
   void _showCreateListDialog(BuildContext context) {
     final TextEditingController controller = TextEditingController();
@@ -304,7 +364,6 @@ class _MyBookListModelsTab extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
-                // FIX: Menggunakan createCustomList
                 await FirestoreService()
                     .createCustomList(controller.text.trim());
                 if (context.mounted) Navigator.pop(context);
@@ -328,7 +387,6 @@ class _MyBookListModelsTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // PERBAIKAN VARIABEL: bookLists (jamak), bukan BookListModels (nama kelas)
         final bookLists = snapshot.data ?? [];
 
         return GridView.builder(
@@ -344,9 +402,8 @@ class _MyBookListModelsTab extends StatelessWidget {
             // ITEM PERTAMA: TOMBOL CREATE
             if (index == 0) {
               return GestureDetector(
-                onTap: () => _showCreateListDialog(context),    
+                onTap: () => _showCreateListDialog(context),
                 child: Container(
-                  // ... (Styling Container Create tetap sama) ...
                   decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),
@@ -357,7 +414,7 @@ class _MyBookListModelsTab extends StatelessWidget {
                       Icon(Icons.add_circle_outline,
                           size: 40, color: Color(0xFF5C6BC0)),
                       SizedBox(height: 8),
-                      Text("New List", // Singkat saja
+                      Text("New List",
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF5C6BC0))),

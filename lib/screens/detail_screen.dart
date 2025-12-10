@@ -21,11 +21,31 @@ class _DetailScreenState extends State<DetailScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final Color _primaryColor = const Color(0xFF5C6BC0);
 
+  bool _isAddingToList = false;
+  bool _isSavingSchedule = false;
+
+  // Helper untuk safely show snackbar
+  void _safeShowSnackBar(String message, {bool isError = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: isError ? Colors.redAccent : _primaryColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    });
+  }
+
   // ===========================================================================
-  // LOGIC 1: MODAL LIST (READING LIST MAIN + CUSTOM LISTS)
+  // LOGIC 1: MODAL LIST
   // ===========================================================================
 
   void _showCollectionModal() {
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -35,14 +55,13 @@ class _DetailScreenState extends State<DetailScreen> {
       ),
       builder: (context) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.5, // Ukuran awal sedang
+          initialChildSize: 0.5,
           minChildSize: 0.4,
           maxChildSize: 0.8,
           expand: false,
           builder: (context, scrollController) {
             return Column(
               children: [
-                // Indikator Drag (Garis Kecil)
                 Center(
                   child: Container(
                     margin: const EdgeInsets.only(top: 12, bottom: 12),
@@ -53,8 +72,6 @@ class _DetailScreenState extends State<DetailScreen> {
                         borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-
-                // Judul Modal
                 const Padding(
                   padding: EdgeInsets.only(bottom: 10),
                   child: Text("Simpan ke List",
@@ -62,27 +79,25 @@ class _DetailScreenState extends State<DetailScreen> {
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const Divider(height: 1),
-
-                // ISI LIST
                 Expanded(
                   child: ListView(
                     controller: scrollController,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 20),
                     children: [
-                      // --- ITEM 1: READING LIST (MAIN) ---
-                      // List bawaan sistem yang terintegrasi jadwal
                       InkWell(
                         onTap: () {
-                          Navigator.pop(context); // Tutup modal dulu
-                          _handleReadingListSelection(); // Masuk logic jadwal
+                          Navigator.of(context).pop();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _handleReadingListSelection();
+                          });
                         },
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                  color: _primaryColor.withValues(alpha : 0.1),
+                                  color: _primaryColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8)),
                               child: Icon(Icons.bookmark_added,
                                   color: _primaryColor),
@@ -107,20 +122,15 @@ class _DetailScreenState extends State<DetailScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 10),
-
                       const Text("Koleksi Pribadi",
                           style: TextStyle(
                               color: Colors.grey,
                               fontWeight: FontWeight.bold,
                               fontSize: 12)),
                       const SizedBox(height: 10),
-
-                      // --- ITEM 2 DST: CUSTOM LISTS DARI DATABASE ---
-// ... kode sebelumnya ...
                       StreamBuilder<List<BookListModel>>(
                         stream: _firestoreService.getCustomLists(),
                         builder: (context, snapshot) {
@@ -154,10 +164,10 @@ class _DetailScreenState extends State<DetailScreen> {
                             itemBuilder: (context, index) {
                               final list = lists[index];
                               return InkWell(
-                                onTap: () => _addBookToCustomList(list),
+                                onTap: () =>
+                                    _addBookToCustomList(list, context),
                                 child: Row(
                                   children: [
-                                    // Cover List
                                     Container(
                                       width: 50,
                                       height: 50,
@@ -182,7 +192,6 @@ class _DetailScreenState extends State<DetailScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          // PERBAIKAN DISINI: Gunakan .title, bukan .name
                                           Text(list.title,
                                               style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -206,16 +215,16 @@ class _DetailScreenState extends State<DetailScreen> {
                     ],
                   ),
                 ),
-
-                // --- FOOTER: TOMBOL BUAT LIST BARU ---
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.pop(context);
-                        _showCreateListDialog();
+                        Navigator.of(context).pop();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _showCreateListDialog();
+                        });
                       },
                       style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -238,34 +247,61 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // LOGIC: TAMBAH KE CUSTOM LIST (Dengan Cek Duplikasi via Service)
-// LOGIC: TAMBAH KE CUSTOM LIST
-  Future<void> _addBookToCustomList(BookListModel list) async {
-    Navigator.pop(context); // Tutup modal
+  // PERBAIKAN UTAMA: Tambah parameter context dan ganti urutan operasi
+  Future<void> _addBookToCustomList(
+      BookListModel list, BuildContext modalContext) async {
+    // Tutup modal DULU sebelum operasi async
+    Navigator.of(modalContext).pop();
+
+    // Set loading state
+    if (mounted) {
+      setState(() {
+        _isAddingToList = true;
+      });
+    }
 
     try {
       await _firestoreService.addBookToBookListModel(list.id, widget.book);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          // PERBAIKAN DISINI: Gunakan .title
-          content: Text("Berhasil ditambahkan ke ${list.title}"),
-          backgroundColor: _primaryColor,
-        ));
-      }
+
+      // Tampilkan snackbar dengan delay untuk memastikan UI stabil
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Berhasil ditambahkan ke ${list.title}"),
+              backgroundColor: _primaryColor,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      });
     } catch (e) {
-      if (mounted) {
-        String errorMessage = e.toString().replaceAll("Exception: ", "");
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.redAccent,
-        ));
-      }
+      String errorMessage = e.toString().replaceAll("Exception: ", "");
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      });
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isAddingToList = false;
+          });
+        }
+      });
     }
   }
 
-  // Dialog Buat List Baru
   void _showCreateListDialog() {
     final TextEditingController listNameController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -283,11 +319,30 @@ class _DetailScreenState extends State<DetailScreen> {
           ElevatedButton(
             onPressed: () {
               if (listNameController.text.isNotEmpty) {
-                _firestoreService.createCustomList(listNameController.text);
+                // Tutup dialog
                 Navigator.pop(context);
-                // Buka kembali modal koleksi setelah membuat list
-                Future.delayed(
-                    const Duration(milliseconds: 300), _showCollectionModal);
+
+                // Buat list
+                _firestoreService.createCustomList(listNameController.text);
+
+                // Tampilkan snackbar konfirmasi
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("List berhasil dibuat"),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                });
+
+                // Buka kembali modal koleksi setelah delay
+                Future.delayed(const Duration(milliseconds: 1000), () {
+                  if (mounted) {
+                    _showCollectionModal();
+                  }
+                });
               }
             },
             child: const Text("Buat"),
@@ -301,68 +356,99 @@ class _DetailScreenState extends State<DetailScreen> {
   // LOGIC 2: READING LIST SCHEDULE FLOW
   // ===========================================================================
 
-  // Step 1: Konfirmasi Jadwal (Pop Up seperti foto ke 6)
   void _handleReadingListSelection() {
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Atur Jadwal Baca?"),
-        content: const Text(
-            "Tentukan target mulai baca dan deadline selesai agar kamu lebih disiplin."),
-        actions: [
-          // Pilihan LEWATI: Masuk Reading List TANPA Jadwal
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _firestoreService.saveBookToReadingList(
-                  widget.book, BookStatus.wantToRead);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text("Masuk Reading List (Tanpa Jadwal)")));
-            },
-            child: const Text("Lewati", style: TextStyle(color: Colors.grey)),
-          ),
-          // Pilihan YA: Lanjut ke Kalender
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _pickDateRange();
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor, foregroundColor: Colors.white),
-            child: const Text("Atur Jadwal"),
-          ),
-        ],
-      ),
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Atur Jadwal Baca?"),
+          content: const Text(
+              "Tentukan target mulai baca dan deadline selesai agar kamu lebih disiplin."),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                // Tutup dialog dulu
+                Navigator.pop(context);
+
+                // Operasi async setelah dialog ditutup
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  if (!mounted) return;
+
+                  setState(() {
+                    _isSavingSchedule = true;
+                  });
+
+                  try {
+                    await _firestoreService.saveBookToReadingList(
+                        widget.book, BookStatus.wantToRead);
+
+                    if (mounted) {
+                      _safeShowSnackBar("Masuk Reading List (Tanpa Jadwal)");
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      _safeShowSnackBar("Error: ${e.toString()}",
+                          isError: true);
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isSavingSchedule = false;
+                      });
+                    }
+                  }
+                });
+              },
+              child: const Text("Lewati", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _pickDateRange();
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white),
+              child: const Text("Atur Jadwal"),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  // Step 2: Pilih Rentang Tanggal (Mulai - Selesai)
   Future<void> _pickDateRange() async {
-    DateTimeRange? pickedRange = await showDateRangePicker(
-        context: context,
-        firstDate: DateTime.now(),
-        lastDate: DateTime(2100),
-        saveText: "LANJUT",
-        helpText: "PILIH MULAI & DEADLINE",
-        builder: (context, child) {
-          return Theme(
-            data: ThemeData.light().copyWith(
-              primaryColor: _primaryColor,
-              colorScheme: ColorScheme.light(primary: _primaryColor),
-            ),
-            child: child!,
-          );
-        });
+    if (!mounted) return;
 
-    if (pickedRange != null) {
-      if (!mounted) return;
-      // Setelah tanggal dipilih, tampilkan Time Picker Pop-up
+    final DateTimeRange? pickedRange = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      saveText: "LANJUT",
+      helpText: "PILIH MULAI & DEADLINE",
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: _primaryColor,
+            colorScheme: ColorScheme.light(primary: _primaryColor),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedRange != null && mounted) {
       _showCompactTimePicker(pickedRange);
     }
   }
 
-  // Step 3: Pilih Jam (Compact Pop-up Ditengah)
   void _showCompactTimePicker(DateTimeRange range) {
+    if (!mounted) return;
+
     DateTime tempTime = DateTime.now();
 
     showDialog(
@@ -376,14 +462,11 @@ class _DetailScreenState extends State<DetailScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: Column(
-            mainAxisSize: MainAxisSize.min, // Agar dialog menyesuaikan konten
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text("Pukul berapa kamu ingin membaca?",
                   style: TextStyle(color: Colors.grey, fontSize: 12)),
               const SizedBox(height: 20),
-
-              // Widget Time Picker yang dipaksa pendek (Compact)
-              // Tinggi 100-120 cukup untuk menampilkan 3 baris (atas, tengah/selected, bawah)
               SizedBox(
                 height: 120,
                 child: CupertinoDatePicker(
@@ -402,22 +485,52 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
-                // Simpan Jadwal & Status
-                await _firestoreService.addSchedule(
-                  book: widget.book,
-                  startDate: range.start,
-                  deadlineDate: range.end,
-                  hour: tempTime.hour,
-                  minute: tempTime.minute,
-                );
-                await _firestoreService.saveBookToReadingList(
-                    widget.book, BookStatus.wantToRead);
+                // Simpan waktu dulu SEBELUM menutup dialog
+                final selectedHour = tempTime.hour;
+                final selectedMinute = tempTime.minute;
 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Buku dijadwalkan & masuk Reading List!")));
-                }
+                // Tutup dialog
+                Navigator.pop(context);
+
+                // Operasi async setelah dialog ditutup
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  if (!mounted) return;
+
+                  // Gunakan variabel lokal untuk setState di widget utama
+                  if (mounted) {
+                    setState(() {
+                      _isSavingSchedule = true;
+                    });
+                  }
+
+                  try {
+                    await _firestoreService.addSchedule(
+                      book: widget.book,
+                      startDate: range.start,
+                      deadlineDate: range.end,
+                      hour: selectedHour,
+                      minute: selectedMinute,
+                    );
+                    await _firestoreService.saveBookToReadingList(
+                        widget.book, BookStatus.wantToRead);
+
+                    if (mounted) {
+                      _safeShowSnackBar(
+                          "Buku dijadwalkan & masuk Reading List!");
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      _safeShowSnackBar("Error: ${e.toString()}",
+                          isError: true);
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isSavingSchedule = false;
+                      });
+                    }
+                  }
+                });
               },
               style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryColor,
@@ -430,21 +543,38 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // ... (Sisa fungsi pendukung seperti _launchPlayStore, _showReviewModal TETAP SAMA)
+  // ===========================================================================
+  // FUNGSI BANTUAN LAINNYA
+  // ===========================================================================
 
   Future<void> _launchPlayStore() async {
     if (widget.book.infoLink.isEmpty) return;
+
     final Uri url = Uri.parse(widget.book.infoLink);
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {}
+    try {
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        _safeShowSnackBar("Tidak dapat membuka link", isError: false);
+      }
+    } catch (e) {
+      _safeShowSnackBar("Error: $e", isError: true);
+    }
   }
 
   void _showReviewModal() {
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => LogBookModal(preSelectedBook: widget.book),
     );
+  }
+
+  @override
+  void dispose() {
+    // Pastikan semua operasi dibersihkan
+    super.dispose();
   }
 
   @override
@@ -461,10 +591,11 @@ class _DetailScreenState extends State<DetailScreen> {
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.black87,
                 actions: [
-                  // --- MODIFIKASI 1: MENGHAPUS ICON BOOKMARK ---
-                  // Hanya menyisakan icon share
                   IconButton(
-                      icon: const Icon(Icons.share_outlined), onPressed: () {}),
+                      icon: const Icon(Icons.share_outlined),
+                      onPressed: () {
+                        // TODO: Implement share
+                      }),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(
@@ -476,8 +607,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         errorBuilder: (_, __, ___) =>
                             Container(color: Colors.grey[200]),
                       ),
-                      Container(color: Colors.white.withValues(alpha : 0.6)),
-
+                      Container(color: Colors.white.withOpacity(0.6)),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 20),
                         child: Column(
@@ -490,7 +620,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withValues(alpha : 0.2),
+                                      color: Colors.black.withOpacity(0.2),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10)),
                                 ],
@@ -534,12 +664,20 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Tombol Sample & Beli
+                      if (_isAddingToList || _isSavingSchedule)
+                        const LinearProgressIndicator(
+                          backgroundColor: Colors.transparent,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF5C6BC0)),
+                        ),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
                               child: OutlinedButton(
-                                  onPressed: () {},
+                                  onPressed: () {
+                                    // TODO: Implement sample
+                                  },
                                   style: OutlinedButton.styleFrom(
                                       side:
                                           BorderSide(color: Colors.grey[300]!),
@@ -564,8 +702,6 @@ class _DetailScreenState extends State<DetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 32),
-
-                      // Deskripsi
                       const Text("Tentang Buku Ini",
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
@@ -576,21 +712,30 @@ class _DetailScreenState extends State<DetailScreen> {
                         textAlign: TextAlign.justify,
                       ),
                       const SizedBox(height: 40),
-
-                      // Review Section
                       const Text("Diskusi Pembaca",
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 16),
-                      // Dummy widget review jika belum ada stream
                       StreamBuilder<List<Review>>(
                           stream:
                               _firestoreService.getBookReviews(widget.book.id),
                           builder: (context, snapshot) {
-                            // ... kode list review sama seperti sebelumnya ...
-                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                              return const Text("Belum ada review.");
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                  child: CircularProgressIndicator());
                             }
+
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Center(
+                                  child: Text("Belum ada review.",
+                                      style: TextStyle(color: Colors.grey)),
+                                ),
+                              );
+                            }
+
                             return const Text(
                                 "Review ada (tampilkan list disini)");
                           }),
@@ -601,8 +746,6 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
             ],
           ),
-
-          // --- MODIFIKASI 2: TOMBOL BAWAH ---
           Positioned(
             bottom: 0,
             left: 0,
@@ -613,13 +756,15 @@ class _DetailScreenState extends State<DetailScreen> {
                   gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
-                      colors: [Colors.white, Colors.white.withValues(alpha : 0.0)],
+                      colors: [Colors.white, Colors.white.withOpacity(0.0)],
                       stops: const [0.6, 1.0])),
               child: Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _showCollectionModal,
+                      onPressed: _isAddingToList || _isSavingSchedule
+                          ? null
+                          : _showCollectionModal,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: _primaryColor,
@@ -629,9 +774,13 @@ class _DetailScreenState extends State<DetailScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                       ),
-                      // Ganti Text Tombol
-                      child: const Text("Tambah ke List",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: _isAddingToList
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text("Tambah ke List",
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 16),

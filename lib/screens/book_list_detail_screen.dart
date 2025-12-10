@@ -13,7 +13,7 @@ class BookListDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FirestoreService firestoreService = FirestoreService();
-    
+
     // 1. Cek apakah User yang login adalah Pemilik List ini
     final currentUser = FirebaseAuth.instance.currentUser;
     final isOwner = currentUser != null && currentUser.uid == bookList.ownerId;
@@ -24,9 +24,7 @@ class BookListDetailScreen extends StatelessWidget {
         MaterialPageRoute(
           // Kirim ID List dan Owner ID
           builder: (_) => LogSearchPage(
-            targetBookListId: bookList.id, 
-            targetOwnerId: bookList.ownerId
-          ),
+              targetBookListId: bookList.id, targetOwnerId: bookList.ownerId),
         ),
       );
     }
@@ -58,13 +56,15 @@ class BookListDetailScreen extends StatelessWidget {
                       TextButton(
                         onPressed: () async {
                           // Panggil service delete (pastikan fungsinya ada di service)
-                          await firestoreService.deleteBookListModel(bookList.id);
+                          await firestoreService
+                              .deleteBookListModel(bookList.id);
                           if (context.mounted) {
-                            Navigator.pop(ctx); 
-                            Navigator.pop(context); 
+                            Navigator.pop(ctx);
+                            Navigator.pop(context);
                           }
                         },
-                        child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                        child: const Text("Hapus",
+                            style: TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
@@ -124,16 +124,67 @@ class BookListDetailScreen extends StatelessWidget {
                 title: Text(book.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(book.author, maxLines: 1),
-                
+
                 // Tombol Hapus per Buku (Hanya muncul jika Owner)
-                trailing: isOwner 
-                  ? IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
-                      onPressed: () {
-                         // TODO: Tambahkan fungsi hapus buku spesifik jika diperlukan
-                      },
-                    )
-                  : null, // Jika bukan owner, tidak ada tombol hapus
+                trailing: isOwner
+                    ? IconButton(
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: Colors.red),
+                        onPressed: () {
+                          // Tampilkan dialog konfirmasi
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text("Hapus Buku?"),
+                              content:
+                                  Text("Hapus '${book.title}' dari list ini?"),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text("Batal"),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    Navigator.pop(ctx); // Tutup dialog
+                                    try {
+                                      await firestoreService.removeBookFromList(
+                                        listId: bookList.id,
+                                        ownerId: bookList.ownerId,
+                                        bookId: book.id,
+                                      );
+                                      // StreamBuilder akan otomatis refresh
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content:
+                                                Text("Buku berhasil dihapus"),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content:
+                                                Text("Error: ${e.toString()}"),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  child: const Text("Hapus",
+                                      style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )
+                    : null, // Jika bukan owner, tidak ada tombol hapus
 
                 onTap: () {
                   Navigator.push(
