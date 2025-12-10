@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class JournalScreen extends StatefulWidget {
   const JournalScreen({super.key});
@@ -23,17 +22,17 @@ class _JournalScreenState extends State<JournalScreen> {
   // --- LOGIC HELPER: WARNA KARTU (Hijau -> Merah) ---
   Color _getCardColor(DateTime start, DateTime end) {
     final now = DateTime.now();
-    
+
     // 1. Belum Mulai -> Putih
-    if (now.isBefore(start)) return Colors.white; 
-    
+    if (now.isBefore(start)) return Colors.white;
+
     // 2. Lewat Deadline -> Merah Pudar
     if (now.isAfter(end)) return Colors.red.shade50;
 
     // 3. Sedang Berjalan (Active) -> Gradasi Hijau ke Merah
     final totalDuration = end.difference(start).inMinutes;
     final elapsed = now.difference(start).inMinutes;
-    
+
     // Hitung progres (0.0 sampai 1.0)
     double progress = 0.0;
     if (totalDuration > 0) {
@@ -42,11 +41,13 @@ class _JournalScreenState extends State<JournalScreen> {
 
     // Fase Awal (0% - 50%): Hijau Muda -> Kuning
     if (progress < 0.5) {
-      return Color.lerp(Colors.lightGreen.shade100, Colors.yellow.shade100, progress * 2)!;
-    } 
+      return Color.lerp(
+          Colors.lightGreen.shade100, Colors.yellow.shade100, progress * 2)!;
+    }
     // Fase Akhir (50% - 100%): Kuning -> Merah Muda
     else {
-      return Color.lerp(Colors.yellow.shade100, Colors.red.shade100, (progress - 0.5) * 2)!;
+      return Color.lerp(
+          Colors.yellow.shade100, Colors.red.shade100, (progress - 0.5) * 2)!;
     }
   }
 
@@ -68,7 +69,7 @@ class _JournalScreenState extends State<JournalScreen> {
       } else {
         text = "Starts in ${diff.inDays}d";
       }
-      icon = Icons.access_time; 
+      icon = Icons.access_time;
       color = Colors.grey; // Warna abu untuk upcoming
     } else if (isOverdue) {
       text = "Overdue";
@@ -91,7 +92,9 @@ class _JournalScreenState extends State<JournalScreen> {
       children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(height: 4),
-        Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+        Text(text,
+            style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
@@ -105,15 +108,20 @@ class _JournalScreenState extends State<JournalScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text("Jadwal Baca Mingguan", style: TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Text("Jadwal Baca Mingguan",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("Pilih hari komitmen bacamu.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text("Pilih hari komitmen bacamu.",
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
                   const SizedBox(height: 16),
                   Wrap(
-                    spacing: 8, runSpacing: 8, alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
                     children: [
                       _dayChip(1, "Sen", selectedDays, setStateDialog),
                       _dayChip(2, "Sel", selectedDays, setStateDialog),
@@ -127,14 +135,19 @@ class _JournalScreenState extends State<JournalScreen> {
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Batal")),
                 ElevatedButton(
                   onPressed: () {
                     _firestoreService.updateReadingDays(selectedDays);
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Jadwal diperbarui!")));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Jadwal diperbarui!")));
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5C6BC0),
+                      foregroundColor: Colors.white),
                   child: const Text("Simpan"),
                 ),
               ],
@@ -145,14 +158,16 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  Widget _dayChip(int dayIndex, String label, List<int> selectedDays, StateSetter setStateDialog) {
+  Widget _dayChip(int dayIndex, String label, List<int> selectedDays,
+      StateSetter setStateDialog) {
     bool isSelected = selectedDays.contains(dayIndex);
     return FilterChip(
       label: Text(label),
       selected: isSelected,
-      selectedColor: const Color(0xFF5C6BC0).withOpacity(0.2),
+      selectedColor: const Color(0xFF5C6BC0).withValues(),
       checkmarkColor: const Color(0xFF5C6BC0),
-      onSelected: (val) => setStateDialog(() => val ? selectedDays.add(dayIndex) : selectedDays.remove(dayIndex)),
+      onSelected: (val) => setStateDialog(() =>
+          val ? selectedDays.add(dayIndex) : selectedDays.remove(dayIndex)),
     );
   }
 
@@ -168,7 +183,8 @@ class _JournalScreenState extends State<JournalScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text("My Schedule", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text("My Schedule",
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -181,7 +197,8 @@ class _JournalScreenState extends State<JournalScreen> {
             // 2. JUDUL
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              child: Text("Upcoming Reading Plans", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              child: Text("Upcoming Reading Plans",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ),
 
             // 3. LIST JADWAL (UPDATED COLOR & ICON)
@@ -211,23 +228,44 @@ class _JournalScreenState extends State<JournalScreen> {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF5C6BC0), Color(0xFF3949AB)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(
+                    colors: [Color(0xFF5C6BC0), Color(0xFF3949AB)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: const Color(0xFF5C6BC0).withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 5))],
+                boxShadow: [
+                  BoxShadow(
+                      color: const Color(0xFF5C6BC0).withValues(),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5))
+                ],
               ),
               child: Column(
                 children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text("Current Streak", style: TextStyle(color: Colors.white70)),
-                    Icon(Icons.edit_calendar, color: Colors.white.withOpacity(0.5), size: 18),
-                  ]),
+                  Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Current Streak",
+                            style: TextStyle(color: Colors.white70)),
+                        Icon(Icons.edit_calendar,
+                            color: Colors.white.withValues(), size: 18),
+                      ]),
                   const SizedBox(height: 8),
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text(streak.toString(), style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold, height: 1)),
+                    Text(streak.toString(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            height: 1)),
                     const SizedBox(width: 8),
-                    const Padding(padding: EdgeInsets.only(bottom: 8), child: Text("days reading", style: TextStyle(color: Colors.white70))),
+                    const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text("days reading",
+                            style: TextStyle(color: Colors.white70))),
                     const Spacer(),
-                    const Icon(Icons.local_fire_department, color: Colors.orangeAccent, size: 36),
+                    const Icon(Icons.local_fire_department,
+                        color: Colors.orangeAccent, size: 36),
                   ]),
                   const SizedBox(height: 24),
                   _buildWeekBubbles(readingDays),
@@ -252,12 +290,18 @@ class _JournalScreenState extends State<JournalScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(7, (index) {
             DateTime date = startOfWeek.add(Duration(days: index));
-            int weekday = date.weekday; 
+            int weekday = date.weekday;
             String label = ["M", "T", "W", "T", "F", "S", "S"][index];
             bool isScheduled = readingDays.contains(weekday);
-            bool isCompleted = logs.any((log) => log.year == date.year && log.month == date.month && log.day == date.day);
-            bool isToday = (date.year == today.year && date.month == today.month && date.day == today.day);
-            bool isPast = date.isBefore(DateTime(today.year, today.month, today.day));
+            bool isCompleted = logs.any((log) =>
+                log.year == date.year &&
+                log.month == date.month &&
+                log.day == date.day);
+            bool isToday = (date.year == today.year &&
+                date.month == today.month &&
+                date.day == today.day);
+            bool isPast =
+                date.isBefore(DateTime(today.year, today.month, today.day));
 
             Color circleColor;
             Widget? circleContent;
@@ -265,33 +309,44 @@ class _JournalScreenState extends State<JournalScreen> {
 
             if (isCompleted) {
               circleColor = Colors.white;
-              circleContent = const Icon(Icons.check, size: 16, color: Color(0xFF5C6BC0));
+              circleContent =
+                  const Icon(Icons.check, size: 16, color: Color(0xFF5C6BC0));
             } else if (isScheduled && isPast) {
-              circleColor = Colors.redAccent.withOpacity(0.8);
-              circleContent = const Icon(Icons.close, size: 16, color: Colors.white);
+              circleColor = Colors.redAccent.withValues();
+              circleContent =
+                  const Icon(Icons.close, size: 16, color: Colors.white);
             } else if (isScheduled && isToday) {
-              circleColor = Colors.white.withOpacity(0.3);
+              circleColor = Colors.white.withValues();
               isClickable = true;
             } else if (isScheduled) {
-              circleColor = Colors.white.withOpacity(0.15);
+              circleColor = Colors.white.withValues();
             } else {
-              circleColor = Colors.black.withOpacity(0.1);
+              circleColor = Colors.black.withValues();
             }
 
             return Column(
               children: [
-                Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                Text(label,
+                    style:
+                        const TextStyle(color: Colors.white60, fontSize: 12)),
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: isClickable ? () {
-                    _firestoreService.markDayAsRead(); 
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Streak +1! 🔥")));
-                  } : null,
+                  onTap: isClickable
+                      ? () {
+                          _firestoreService.markDayAsRead();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Streak +1! 🔥")));
+                        }
+                      : null,
                   child: Container(
-                    width: 32, height: 32,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
-                      color: circleColor, shape: BoxShape.circle,
-                      border: isToday && isScheduled ? Border.all(color: Colors.white, width: 1.5) : null,
+                      color: circleColor,
+                      shape: BoxShape.circle,
+                      border: isToday && isScheduled
+                          ? Border.all(color: Colors.white, width: 1.5)
+                          : null,
                     ),
                     child: Center(child: circleContent),
                   ),
@@ -309,12 +364,16 @@ class _JournalScreenState extends State<JournalScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestoreService.getSchedules(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(child: Column(children: [
+          return Center(
+              child: Column(children: [
             Icon(Icons.event_note, size: 60, color: Colors.grey[300]),
             const SizedBox(height: 10),
-            const Text("Belum ada jadwal aktif.", style: TextStyle(color: Colors.grey)),
+            const Text("Belum ada jadwal aktif.",
+                style: TextStyle(color: Colors.grey)),
           ]));
         }
 
@@ -376,31 +435,58 @@ class _JournalScreenState extends State<JournalScreen> {
                 color: cardColor, // Warna Dinamis
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade200), // Border halus
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.grey.withValues(),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2))
+                ],
               ),
               child: Row(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: (thumbUrl.isNotEmpty) 
-                      ? Image.network(thumbUrl, width: 50, height: 75, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(width: 50, height: 75, color: Colors.grey[300], child: const Icon(Icons.broken_image, size: 20)))
-                      : Container(width: 50, height: 75, color: Colors.grey[300], child: const Icon(Icons.book, size: 20)),
+                    child: (thumbUrl.isNotEmpty)
+                        ? Image.network(thumbUrl,
+                            width: 50,
+                            height: 75,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                width: 50,
+                                height: 75,
+                                color: Colors.grey[300],
+                                child:
+                                    const Icon(Icons.broken_image, size: 20)))
+                        : Container(
+                            width: 50,
+                            height: 75,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.book, size: 20)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(data['bookTitle'] ?? 'No Title', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(data['bookTitle'] ?? 'No Title',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
                         const SizedBox(height: 4),
                         Row(children: [
-                          const Icon(Icons.alarm, size: 14, color: Colors.black87),
+                          const Icon(Icons.alarm,
+                              size: 14, color: Colors.black87),
                           const SizedBox(width: 4),
-                          Text("Reminder: $targetTimeStr", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          Text("Reminder: $targetTimeStr",
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600)),
                         ]),
                         const SizedBox(height: 2),
-                        Text("${DateFormat('d MMM').format(start)} - ${DateFormat('d MMM').format(end)}", style: const TextStyle(fontSize: 12, color: Colors.grey))
+                        Text(
+                            "${DateFormat('d MMM').format(start)} - ${DateFormat('d MMM').format(end)}",
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey))
                       ],
                     ),
                   ),

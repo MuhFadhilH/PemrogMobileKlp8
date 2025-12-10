@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // 2. SECTION: COCOK UNTUKMU (Carousel Besar - Infinite)
                       _buildSectionTitle("Cocok Untukmu"),
-                      InfiniteBookList(
+                      InfiniteBookListModel(
                         books: _recommendedBooks,
                         height: 280, // Tinggi area
                         itemBuilder: (context, book) {
@@ -108,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // 3. SECTION: SEDANG TREN (List Kecil - Infinite)
                       _buildSectionTitle("Sedang Tren 🔥"),
-                      InfiniteBookList(
+                      InfiniteBookListModel(
                         books: _trendingBooks,
                         height: 200, // Tinggi area
                         itemBuilder: (context, book) {
@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -269,12 +269,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // --- WIDGET LIST INFINITE (BERPUTAR TERUS) ---
-class InfiniteBookList extends StatelessWidget {
+class InfiniteBookListModel extends StatelessWidget {
   final List<Book> books;
   final double height;
   final Widget Function(BuildContext, Book) itemBuilder;
 
-  const InfiniteBookList({
+  const InfiniteBookListModel({
     super.key,
     required this.books,
     required this.height,

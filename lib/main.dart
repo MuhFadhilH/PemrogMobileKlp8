@@ -2,17 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'firebase_options.dart'; // Pastikan file ini tetap ada
+import 'firebase_options.dart';
 import 'providers/book_provider.dart';
 import 'screens/login_page.dart';
 import 'main_nav.dart';
+import 'services/notification_service.dart'; // Import ini
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // PERBAIKAN: Inisialisasi Notifikasi
+  await NotificationService().init();
+
   runApp(const MyApp());
 }
 
+// ... Sisa class MyApp tetap sama ...
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -28,7 +34,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
             seedColor: const Color(0xFF5C6BC0), // Indigo Lembut
-            background: const Color(0xFFF5F7FA), // Putih Kebiruan (Soft)
+            surface: const Color(0xFFF5F7FA), // Putih Kebiruan (Soft)
           ),
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.white,

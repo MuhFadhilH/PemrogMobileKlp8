@@ -1,43 +1,50 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class BookList {
+class BookListModel {
   final String id;
-  final String name;
-  final String userId;
-  final String? coverUrl; // Cover diambil dari buku pertama
+  final String title;
+  final String ownerId;
+  final String ownerName;
   final int bookCount;
-  final DateTime createdAt;
+  final List<String> previewImages;
 
-  BookList({
+  BookListModel({
     required this.id,
-    required this.name,
-    required this.userId,
-    this.coverUrl,
-    this.bookCount = 0,
-    required this.createdAt,
+    required this.title,
+    required this.ownerId,
+    required this.ownerName,
+    required this.bookCount,
+    required this.previewImages,
   });
 
-  // Dari Firestore ke Object Dart
-  factory BookList.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
-    return BookList(
-      id: doc.id,
-      name: data['name'] ?? 'Untitled List',
-      userId: data['userId'] ?? '',
-      coverUrl: data['coverUrl'],
-      bookCount: data['bookCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
+  // --- TAMBAHKAN GETTER INI ---
+  // Ini akan otomatis mengambil gambar pertama sebagai cover, atau null jika kosong
+  String? get coverUrl => previewImages.isNotEmpty ? previewImages.first : null;
+  // -----------------------------
+
+  factory BookListModel.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return BookListModel.fromMap(data, doc.id);
   }
 
-  // Dari Object Dart ke Firestore
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'userId': userId,
-      'coverUrl': coverUrl,
-      'bookCount': bookCount,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
+  factory BookListModel.fromMap(Map<String, dynamic> data, String id) {
+    List<String> images = [];
+    // Cek apakah ada field 'coverUrl' lama (single string)
+    if (data['coverUrl'] != null && data['coverUrl'].toString().isNotEmpty) {
+      images.add(data['coverUrl']);
+    }
+    // Atau pakai 'previewImages' (list string)
+    else if (data['previewImages'] != null) {
+      images = List<String>.from(data['previewImages']);
+    }
+
+    return BookListModel(
+      id: id,
+      title: data['name'] ?? data['title'] ?? 'Untitled List',
+      ownerId: data['userId'] ?? data['ownerId'] ?? '',
+      ownerName: data['ownerName'] ?? 'Bibliomate User',
+      bookCount: data['bookCount'] ?? 0,
+      previewImages: images,
+    );
   }
 }

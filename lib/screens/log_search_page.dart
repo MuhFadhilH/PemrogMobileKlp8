@@ -4,14 +4,14 @@ import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
 class LogSearchPage extends StatefulWidget {
-  // Jika null, berarti mode normal (Log review / Search umum)
-  // Jika diisi, berarti mode "Add to Playlist" (Spotify style)
   final String? targetBookListId;
-  final bool isGeneralSearch; // Tetap simpan untuk fallback
+  final String? targetOwnerId; // <--- 1. TAMBAHAN: Parameter Baru
+  final bool isGeneralSearch;
 
   const LogSearchPage({
     super.key,
     this.targetBookListId,
+    this.targetOwnerId, // <--- 2. TAMBAHAN: Masukkan ke Constructor
     this.isGeneralSearch = false,
   });
 
@@ -22,11 +22,13 @@ class LogSearchPage extends StatefulWidget {
 class _LogSearchPageState extends State<LogSearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
+  final FirestoreService _firestoreService =
+      FirestoreService(); // Instance Service
 
   List<Book> _searchResults = [];
   bool _isSearching = false;
 
-  // Dummy Recent Searches (Biar mirip screenshot)
+  // Dummy Recent Searches
   final List<String> _recentSearches = [
     "Laut Bercerita",
     "Atomic Habits",
@@ -51,8 +53,51 @@ class _LogSearchPageState extends State<LogSearchPage> {
     }
   }
 
+  // --- LOGIC BARU: MENENTUKAN AKSI SAAT BUKU DIKLIK ---
+  void _onBookTap(Book book) {
+    if (widget.targetBookListId != null) {
+      // KASUS A: Mode Tambah ke List (Dari BookListDetailScreen)
+      _addBookToTargetList(book);
+    } else {
+      // KASUS B: Mode Normal (Log Review)
+      _goToReviewForm(book);
+    }
+  }
+
+  // Fungsi Simpan Buku ke Custom List
+  Future<void> _addBookToTargetList(Book book) async {
+    try {
+      // Tampilkan loading indikator sederhana
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Menyimpan buku...")),
+      );
+
+      // Panggil Service
+      await _firestoreService.addBookToBookListModel(
+          widget.targetBookListId!, book);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Berhasil ditambahkan ke List!"),
+              backgroundColor: Color(0xFF5C6BC0)),
+        );
+        Navigator.pop(context); // Tutup halaman pencarian
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        // Bersihkan pesan error agar lebih rapi
+        String err = e.toString().replaceAll("Exception: ", "");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _goToReviewForm(Book book) {
-    // Pindah ke Halaman Form Review
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
@@ -66,13 +111,15 @@ class _LogSearchPageState extends State<LogSearchPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context)),
         title: TextField(
           controller: _searchController,
-          autofocus: true, // Langsung muncul keyboard
-          onChanged: _searchBooks, // Live Search saat ngetik
+          autofocus: true,
+          onChanged: _searchBooks,
           decoration: const InputDecoration(
-            hintText: "Name of book...", // Sesuai screenshot
+            hintText: "Cari buku...",
             hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
             border: InputBorder.none,
           ),
@@ -84,18 +131,16 @@ class _LogSearchPageState extends State<LogSearchPage> {
   }
 
   Widget _buildBody() {
-    // KASUS 1: Lagi Loading
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // KASUS 2: Belum ngetik apa-apa (Tampilkan Recent Searches)
     if (_searchController.text.isEmpty) {
       return ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         children: [
           const Text(
-            "RECENT SEARCHES",
+            "PENCARIAN TERAKHIR",
             style: TextStyle(
                 color: Colors.grey,
                 fontSize: 12,
@@ -105,10 +150,8 @@ class _LogSearchPageState extends State<LogSearchPage> {
           const SizedBox(height: 10),
           ..._recentSearches.map((text) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(
-                  text,
-                  style: const TextStyle(color: Colors.grey, fontSize: 16),
-                ),
+                title: Text(text,
+                    style: const TextStyle(color: Colors.grey, fontSize: 16)),
                 onTap: () {
                   _searchController.text = text;
                   _searchBooks(text);
@@ -118,7 +161,6 @@ class _LogSearchPageState extends State<LogSearchPage> {
       );
     }
 
-    // KASUS 3: Ada Hasil Pencarian
     return ListView.builder(
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
@@ -132,15 +174,15 @@ class _LogSearchPageState extends State<LogSearchPage> {
           ),
           title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(book.author, maxLines: 1),
-          onTap: () => _goToReviewForm(book),
+          // PERBAIKAN: Panggil _onBookTap, bukan langsung ke form review
+          onTap: () => _onBookTap(book),
         );
       },
     );
   }
 }
 
-// --- HALAMAN 2: FORM REVIEW (Letterboxd Style) ---
-// Dipisah class-nya biar rapi
+// ... (Class LogFormPage di bawahnya tetap sama, tidak perlu diubah)
 class LogFormPage extends StatefulWidget {
   final Book book;
   const LogFormPage({super.key, required this.book});
@@ -150,7 +192,7 @@ class LogFormPage extends StatefulWidget {
 }
 
 class _LogFormPageState extends State<LogFormPage> {
-  bool _isSubmitting = false; // Tambahkan ini di bawah controller
+  bool _isSubmitting = false;
   double _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
 
@@ -161,35 +203,28 @@ class _LogFormPageState extends State<LogFormPage> {
       );
       return;
     }
-
-    setState(() => _isSubmitting = true); // Mulai Loading
-
+    setState(() => _isSubmitting = true);
     try {
-      // Panggil Service yang baru kita buat
       await FirestoreService().addReview(
         book: widget.book,
         rating: _rating,
         reviewText: _reviewController.text,
       );
-
-      if (!mounted) return; // Cek apakah layar masih aktif
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Review berhasil disimpan!"),
           backgroundColor: Color(0xFF5C6BC0),
         ),
       );
-
-      // Tutup halaman Form & Search (Balik ke Home)
-      Navigator.pop(context);
-      Navigator.pop(context);
+      Navigator.pop(context); // Tutup Form
+      Navigator.pop(context); // Tutup Search Page (Balik ke Home)
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal menyimpan: $e")),
       );
     } finally {
-      if (mounted) setState(() => _isSubmitting = false); // Stop Loading
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -211,14 +246,19 @@ class _LogFormPageState extends State<LogFormPage> {
         ),
         actions: [
           TextButton(
-            onPressed: _saveReview,
-            child: const Text(
-              "Save",
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Color(0xFF5C6BC0)),
-            ),
+            onPressed: _isSubmitting ? null : _saveReview,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text(
+                    "Save",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF5C6BC0)),
+                  ),
           ),
         ],
       ),
@@ -226,7 +266,6 @@ class _LogFormPageState extends State<LogFormPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Row Layout (Poster + Judul)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -257,32 +296,12 @@ class _LogFormPageState extends State<LogFormPage> {
                       ),
                       Text(widget.book.author,
                           style: const TextStyle(color: Colors.grey)),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today,
-                                size: 14, color: Colors.grey),
-                            SizedBox(width: 8),
-                            Text("Read on Today",
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 30),
-
-            // Rating
             const Text("Rating",
                 style:
                     TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
@@ -301,10 +320,7 @@ class _LogFormPageState extends State<LogFormPage> {
                         onPressed: () => setState(() => _rating = index + 1.0),
                       )),
             ),
-
             const Divider(height: 40),
-
-            // Textfield Luas
             TextField(
               controller: _reviewController,
               maxLines: null,

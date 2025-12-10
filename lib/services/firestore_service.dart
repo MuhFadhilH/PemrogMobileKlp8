@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/book_list_model.dart';
 import '../models/book_model.dart';
 import '../models/book_status.dart';
 import '../models/review_model.dart';
-import '../models/book_list_model.dart'; 
-import 'notification_service.dart'; 
+import '../models/user_model.dart';
+import 'notification_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -22,16 +23,17 @@ class FirestoreService {
   }
 
   // Update bio dan username
-  Future<void> updateUserProfile({required String username, required String bio}) async {
+  Future<void> updateUserProfile(
+      {required String username, required String bio}) async {
     User? user = _auth.currentUser;
     if (user == null) return;
-    
+
     // Update di Firestore
     await _db.collection('users').doc(user.uid).update({
       'username': username,
       'bio': bio,
     });
-    
+
     // Update di Auth (agar displayName sinkron)
     await user.updateDisplayName(username);
   }
@@ -69,7 +71,7 @@ class FirestoreService {
   Stream<BookStatus> getBookStatusStream(String bookId) {
     User? user = _auth.currentUser;
     if (user == null) return Stream.value(BookStatus.none);
-    
+
     return _db
         .collection('users')
         .doc(user.uid)
@@ -97,11 +99,13 @@ class FirestoreService {
         .orderBy('addedAt', descending: true);
 
     if (filterStatus != null && filterStatus != BookStatus.none) {
-      query = query.where('readingStatus', isEqualTo: filterStatus.toFirestoreString());
+      query = query.where('readingStatus',
+          isEqualTo: filterStatus.toFirestoreString());
     }
 
     return query.snapshots().map((snapshot) => snapshot.docs
-        .map((doc) => Book.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
+        .map((doc) =>
+            Book.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
         .toList());
   }
 
@@ -155,7 +159,8 @@ class FirestoreService {
       'thumbnailUrl': book.thumbnailUrl,
       'startDate': Timestamp.fromDate(startDate),
       'deadlineDate': Timestamp.fromDate(deadlineDate),
-      'targetTime': '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
+      'targetTime':
+          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
       'notificationId': notificationId,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -180,13 +185,13 @@ class FirestoreService {
         .collection('users')
         .doc(user.uid)
         .collection('schedules')
-        .where('deadlineDate', isGreaterThan: Timestamp.now()) 
-        .orderBy('deadlineDate', descending: false) 
+        .where('deadlineDate', isGreaterThan: Timestamp.now())
+        .orderBy('deadlineDate', descending: false)
         .snapshots();
   }
 
   // ===========================================================================
-  // 4. FITUR CUSTOM BOOKLIST (KOLEKSI PRIBADI)
+  // 4. FITUR CUSTOM BookListModel (KOLEKSI PRIBADI)
   // ===========================================================================
 
   Future<void> createCustomList(String listName) async {
@@ -194,7 +199,11 @@ class FirestoreService {
     if (user == null) return;
 
     // Membuat dokumen list baru
-    await _db.collection('users').doc(user.uid).collection('custom_book_lists').add({
+    await _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('custom_book_lists')
+        .add({
       'name': listName,
       'userId': user.uid,
       'bookCount': 0,
@@ -203,7 +212,7 @@ class FirestoreService {
     });
   }
 
-  Stream<List<BookList>> getCustomLists() {
+  Stream<List<BookListModel>> getCustomLists() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
 
@@ -213,11 +222,12 @@ class FirestoreService {
         .collection('custom_book_lists')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => BookList.fromFirestore(doc)).toList());
+        .map((snap) =>
+            snap.docs.map((doc) => BookListModel.fromFirestore(doc)).toList());
   }
 
   // FIX: Menambah buku ke dalam List Spesifik dengan Cek Duplikasi (Transactional)
-  Future<void> addBookToBookList(String listId, Book book) async {
+  Future<void> addBookToBookListModel(String listId, Book book) async {
     User? user = _auth.currentUser;
     if (user == null) return;
 
@@ -226,7 +236,7 @@ class FirestoreService {
         .doc(user.uid)
         .collection('custom_book_lists')
         .doc(listId);
-    
+
     // Referensi ke dokumen buku di dalam sub-collection list tersebut
     final bookRef = listRef.collection('books').doc(book.id);
 
@@ -234,7 +244,7 @@ class FirestoreService {
     await _db.runTransaction((transaction) async {
       // 1. Cek apakah buku SUDAH ADA di dalam list ini
       DocumentSnapshot bookSnap = await transaction.get(bookRef);
-      
+
       if (bookSnap.exists) {
         // Jika sudah ada, lempar error agar bisa ditangkap di UI
         throw Exception("Buku ini sudah ada di dalam list.");
@@ -249,23 +259,24 @@ class FirestoreService {
       // 3. Siapkan data update untuk list induk (Counter & Cover)
       // Menggunakan casting ke Map agar aman saat akses field
       Map<String, dynamic> listData = listSnap.data() as Map<String, dynamic>;
-      
+
       int currentCount = listData['bookCount'] ?? 0;
-      String? currentCover = listData.containsKey('coverUrl') ? listData['coverUrl'] : null;
+      String? currentCover =
+          listData.containsKey('coverUrl') ? listData['coverUrl'] : null;
 
       transaction.update(listRef, {
         'bookCount': currentCount + 1,
         // Jika belum ada cover, pakai thumbnail buku ini sebagai cover list
         'coverUrl': currentCover ?? book.thumbnailUrl,
       });
-      
+
       // 4. Tulis buku baru ke sub-collection 'books'
       transaction.set(bookRef, book.toMap());
     });
   }
 
   // Melihat isi buku dalam list tertentu
-  Stream<List<Book>> getBooksInBookList(String listId) {
+  Stream<List<Book>> getBooksInBookListModel(String listId) {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
 
@@ -282,7 +293,7 @@ class FirestoreService {
   }
 
   // Hapus Custom List
-  Future<void> deleteBookList(String listId) async {
+  Future<void> deleteBookListModel(String listId) async {
     User? user = _auth.currentUser;
     if (user == null) return;
     await _db
@@ -318,7 +329,7 @@ class FirestoreService {
     }
 
     final docRef = _db.collection('reviews').doc();
-    
+
     final newReview = Review(
       id: docRef.id,
       userId: user.uid,
@@ -335,128 +346,245 @@ class FirestoreService {
     await docRef.set(newReview.toMap());
   }
 
-  // Ambil Review user sendiri (History Review)
-  Stream<List<Review>> getUserReviews() {
-    final user = _auth.currentUser;
-    if (user == null) return const Stream.empty();
+// ===========================================================================
+  // UPDATE: REVIEWS & LISTS (Agar bisa lihat punya orang lain)
+  // ===========================================================================
+
+  // Fungsi READ: Ambil review (Bisa punya sendiri, bisa punya orang lain)
+  // Tambahkan parameter opsional {String? userId}
+  Stream<List<Review>> getUserReviews({String? userId}) {
+    // Jika userId diisi (Public Profile), pakai itu.
+    // Jika kosong (Profile Sendiri), pakai _auth.currentUser.uid
+    String? targetUid = userId ?? _auth.currentUser?.uid;
+
+    if (targetUid == null) return const Stream.empty();
+
     return _db
         .collection('reviews')
-        .where('userId', isEqualTo: user.uid)
+        .where('userId', isEqualTo: targetUid)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((s) => s.docs.map((d) => Review.fromMap(d.data(), d.id)).toList());
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return Review.fromMap(doc.data(), doc.id);
+      }).toList();
+    });
   }
 
-  // Ambil Review orang lain pada buku tertentu
+  // Fungsi BARU: Ambil Custom List milik orang lain (Public Profile)
+  Stream<List<BookListModel>> getUserBookLists(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('custom_book_lists')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((doc) => BookListModel.fromFirestore(doc)).toList());
+  }
+  // --- FITUR CUSTOM LIST (SHELF) ---
+
+  // 1. Ambil Buku di dalam List Tertentu
+  Stream<List<Book>> getBooksInList(
+      {required String listId, required String ownerId}) {
+    // Path: users/{ownerId}/custom_book_lists/{listId}/books
+    return _db
+        .collection('users')
+        .doc(ownerId)
+        .collection('custom_book_lists')
+        .doc(listId)
+        .collection('books')
+        .orderBy('addedAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Book.fromFirestore(doc.data(), doc.id))
+          .toList();
+    });
+  }
+  // ... (KODE LAMA TETAP DISINI: User Profile, Reading List, Schedule, Custom List) ...
+
+  // ===========================================================================
+  // TAMBAHAN PERBAIKAN (Agar tidak error di ExploreScreen & DetailScreen)
+  // ===========================================================================
+
+  // 1. Mengambil Review berdasarkan ID Buku (Dipakai di DetailScreen)
   Stream<List<Review>> getBookReviews(String bookId) {
     return _db
         .collection('reviews')
         .where('bookId', isEqualTo: bookId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((s) => s.docs.map((d) => Review.fromMap(d.data(), d.id)).toList());
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Review.fromMap(doc.data(), doc.id))
+            .toList());
   }
-  // 6. FITUR STREAK & JADWAL HARIAN (BARU)
+
+  // 2. Search Users (Dipakai di ExploreScreen)
+  // Catatan: Firestore tidak support partial text search (LIKE %query%) secara native.
+  // Ini adalah trik sederhana untuk prefix search.
+  Future<List<UserModel>> searchUsers(String query) async {
+    if (query.isEmpty) return [];
+    
+    // Pastikan field 'username' di firestore konsisten lowercase jika ingin case-insensitive
+    final snapshot = await _db
+        .collection('users')
+        .where('username', isGreaterThanOrEqualTo: query)
+        .where('username', isLessThan: '${query}z')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  // 3. Search Reviews (Dipakai di ExploreScreen)
+  Future<List<Review>> searchReviews(String query) async {
+    if (query.isEmpty) return [];
+
+    // Mencari review berdasarkan isi text (Case sensitive & Prefix only)
+    final snapshot = await _db
+        .collection('reviews')
+        .where('reviewText', isGreaterThanOrEqualTo: query)
+        .where('reviewText', isLessThan: '${query}z')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => Review.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  // 4. Search Book Lists (Dipakai di ExploreScreen)
+  Future<List<BookListModel>> searchBookListModels(String query) async {
+    if (query.isEmpty) return [];
+
+    final snapshot = await _db
+        .collectionGroup('custom_book_lists') // Menggunakan collectionGroup karena list ada di sub-collection user
+        .where('name', isGreaterThanOrEqualTo: query)
+        .where('name', isLessThan: '${query}z')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => BookListModel.fromFirestore(doc))
+        .toList();
+  }
+
+  // ===========================================================================
+  // 6. FITUR JURNAL & STREAK (Tambahan Baru)
   // ===========================================================================
 
-  // 1. Update Hari Baca Pilihan User (Contoh: [1, 3, 7] = Senin, Rabu, Minggu)
+  // Validasi Streak: Cek apakah user melewatkan satu hari
+  Future<void> validateStreak() async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    final userDocRef = _db.collection('users').doc(user.uid);
+    final doc = await userDocRef.get();
+
+    if (!doc.exists) return;
+
+    final data = doc.data() as Map<String, dynamic>;
+    final lastReadTimestamp = data['lastReadDate'] as Timestamp?;
+
+    // Jika belum pernah baca, tidak perlu validasi
+    if (lastReadTimestamp == null) return;
+
+    final lastRead = lastReadTimestamp.toDate();
+    final now = DateTime.now();
+
+    // Normalisasi tanggal (hilangkan jam/menit/detik) untuk perbandingan hari
+    final dateLastRead = DateTime(lastRead.year, lastRead.month, lastRead.day);
+    final dateNow = DateTime(now.year, now.month, now.day);
+
+    final difference = dateNow.difference(dateLastRead).inDays;
+
+    // Jika selisih > 1 hari (artinya kemarin tidak baca), reset streak jadi 0
+    if (difference > 1) {
+      await userDocRef.update({'currentStreak': 0});
+    }
+  }
+
+  // Update hari komitmen membaca (misal: Senin, Rabu, Jumat)
   Future<void> updateReadingDays(List<int> days) async {
     User? user = _auth.currentUser;
     if (user == null) return;
-    
-    await _db.collection('users').doc(user.uid).set({
-      'readingDays': days, // List integer (1=Senin, 7=Minggu)
-    }, SetOptions(merge: true));
+    await _db.collection('users').doc(user.uid).update({'readingDays': days});
   }
 
-  // 2. Ambil Log Bacaan Minggu Ini (Untuk UI Bulat-bulat)
+  // Tandai hari ini sudah membaca (Tombol Api ditekan)
+  Future<void> markDayAsRead() async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    final now = DateTime.now();
+    final dateNow = DateTime(now.year, now.month, now.day);
+    final userDocRef = _db.collection('users').doc(user.uid);
+
+    // 1. Cek apakah hari ini sudah absen (Log) agar tidak duplikat
+    final startOfDay = Timestamp.fromDate(dateNow);
+    final endOfDay = Timestamp.fromDate(dateNow.add(const Duration(days: 1)));
+
+    final logsQuery = await userDocRef
+        .collection('reading_logs')
+        .where('date', isGreaterThanOrEqualTo: startOfDay)
+        .where('date', isLessThan: endOfDay)
+        .get();
+
+    if (logsQuery.docs.isNotEmpty) {
+      // User sudah absen hari ini, hentikan proses
+      return;
+    }
+
+    // 2. Tambah Log baru ke sub-collection
+    await userDocRef.collection('reading_logs').add({
+      'date': FieldValue.serverTimestamp(),
+    });
+
+    // 3. Update Streak & Last Read Date
+    final doc = await userDocRef.get();
+    final data = doc.data() as Map<String, dynamic>;
+    final lastReadTimestamp = data['lastReadDate'] as Timestamp?;
+    int currentStreak = data['currentStreak'] ?? 0;
+
+    if (lastReadTimestamp != null) {
+      final lastRead = lastReadTimestamp.toDate();
+      final dateLastRead =
+          DateTime(lastRead.year, lastRead.month, lastRead.day);
+
+      final diff = dateNow.difference(dateLastRead).inDays;
+
+      if (diff == 1) {
+        // Jika terakhir baca kemarin, streak bertambah
+        currentStreak++;
+      } else if (diff > 1) {
+        // Jika terlewat, reset jadi 1
+        currentStreak = 1;
+      }
+      // Jika diff == 0 (hari yang sama), streak tetap (seharusnya sudah dicek di logsQuery)
+    } else {
+      // Pertama kali baca
+      currentStreak = 1;
+    }
+
+    await userDocRef.update({
+      'lastReadDate': FieldValue.serverTimestamp(),
+      'currentStreak': currentStreak,
+    });
+  }
+
+  // Ambil data log mingguan untuk tampilan 'Week Bubbles'
   Stream<List<DateTime>> getWeeklyLogs(DateTime startOfWeek) {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
-
-    DateTime endOfWeek = startOfWeek.add(const Duration(days: 7));
 
     return _db
         .collection('users')
         .doc(user.uid)
         .collection('reading_logs')
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeek))
-        .where('date', isLessThan: Timestamp.fromDate(endOfWeek))
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => (doc['date'] as Timestamp).toDate()).toList());
-  }
-
-  // 3. Tandai Hari Ini Sudah Baca (Klik Bulatan)
-  Future<void> markDayAsRead() async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day); // Jam 00:00
-
-    final userRef = _db.collection('users').doc(user.uid);
-    final logRef = userRef.collection('reading_logs').doc(today.toIso8601String().split('T')[0]);
-
-    await _db.runTransaction((transaction) async {
-      // Cek apakah hari ini sudah absen
-      final logSnap = await transaction.get(logRef);
-      if (logSnap.exists) return; // Sudah absen, jangan double count
-
-      // Update Streak
-      final userSnap = await transaction.get(userRef);
-      int currentStreak = userSnap.data()?['currentStreak'] ?? 0;
-
-      transaction.update(userRef, {'currentStreak': currentStreak + 1});
-      transaction.set(logRef, {'date': Timestamp.fromDate(today)});
-    });
-  }
-
-  // 4. Cek & Reset Streak (Dijalankan saat loading halaman)
-  // Logic: Jika ada jadwal KEMARIN atau sebelumnya yang bolong, reset streak jadi 0.
-  Future<void> validateStreak() async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    final userDoc = await _db.collection('users').doc(user.uid).get();
-    if (!userDoc.exists) return;
-
-    List<dynamic> readingDays = userDoc.data()?['readingDays'] ?? [];
-    int currentStreak = userDoc.data()?['currentStreak'] ?? 0;
-    
-    if (currentStreak == 0 || readingDays.isEmpty) return;
-
-    // Cek log terakhir
-    final logs = await _db.collection('users').doc(user.uid).collection('reading_logs')
-        .orderBy('date', descending: true).limit(1).get();
-    
-    if (logs.docs.isEmpty) return;
-
-    DateTime lastLogDate = (logs.docs.first['date'] as Timestamp).toDate();
-    DateTime today = DateTime.now();
-    
-    // Normalisasi ke jam 00:00
-    lastLogDate = DateTime(lastLogDate.year, lastLogDate.month, lastLogDate.day);
-    today = DateTime(today.year, today.month, today.day);
-
-    // Jika log terakhir adalah hari ini, aman.
-    if (lastLogDate.isAtSameMomentAs(today)) return;
-
-    // Loop dari sehari setelah log terakhir sampai KEMARIN
-    // Jika ada hari yang masuk 'readingDays' tapi tidak ada log, RESET.
-    bool broken = false;
-    DateTime checkDate = lastLogDate.add(const Duration(days: 1));
-
-    while (checkDate.isBefore(today)) {
-      // .weekday return 1 (Senin) - 7 (Minggu)
-      if (readingDays.contains(checkDate.weekday)) {
-        broken = true;
-        break;
-      }
-      checkDate = checkDate.add(const Duration(days: 1));
-    }
-
-    if (broken) {
-      await _db.collection('users').doc(user.uid).update({'currentStreak': 0});
-    }
+        .map((snapshot) => snapshot.docs.map((doc) {
+              return (doc['date'] as Timestamp).toDate();
+            }).toList());
   }
 }
