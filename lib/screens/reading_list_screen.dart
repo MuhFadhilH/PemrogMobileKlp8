@@ -96,7 +96,7 @@ class _ReadingListScreenState extends State<ReadingListScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withValues(),
+                            color: Colors.grey.withValues(alpha : 0.2),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -143,7 +143,7 @@ class _ReadingListScreenState extends State<ReadingListScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF5C6BC0).withValues(),
+                                color: const Color(0xFF5C6BC0).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(

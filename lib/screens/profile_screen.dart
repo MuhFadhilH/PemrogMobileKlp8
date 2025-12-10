@@ -286,7 +286,35 @@ class _MyBookListModelsTab extends StatelessWidget {
   const _MyBookListModelsTab();
 
   void _showCreateListDialog(BuildContext context) {
-    // ... (Kode dialog tetap sama) ...
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Buat BookList Baru"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+              hintText: "Nama List (cth: Wajib Baca 2024 🔥)"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                // FIX: Menggunakan createCustomList
+                await FirestoreService()
+                    .createCustomList(controller.text.trim());
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+            child: const Text("Buat"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -316,7 +344,7 @@ class _MyBookListModelsTab extends StatelessWidget {
             // ITEM PERTAMA: TOMBOL CREATE
             if (index == 0) {
               return GestureDetector(
-                onTap: () => _showCreateListDialog(context),
+                onTap: () => _showCreateListDialog(context),    
                 child: Container(
                   // ... (Styling Container Create tetap sama) ...
                   decoration: BoxDecoration(
@@ -339,15 +367,12 @@ class _MyBookListModelsTab extends StatelessWidget {
               );
             }
 
-            // ITEM SELANJUTNYA: LIST ITEM
-            final bookList = bookLists[index - 1]; // Single object
-
+            // ITEM SELANJUTNYA: LIST BOOKLIST
+            final bookList = bookLists[index - 1];
             return GestureDetector(
               onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      // PERBAIKAN: Nama Class Layar Detail yang benar
-                      // File: book_list_detail_screen.dart -> Class: BookListDetailScreen
                       builder: (_) =>
                           BookListDetailScreen(bookList: bookList))),
               child: Column(
@@ -359,22 +384,20 @@ class _MyBookListModelsTab extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         color: Colors.grey[200],
-                        // PERBAIKAN: Di BookListModel biasanya fieldnya previewImages (List) atau coverUrl (String)
-                        // Kita pakai logika ambil gambar pertama
-                        image: (bookList.previewImages.isNotEmpty)
+                        image: bookList.coverUrl != null
                             ? DecorationImage(
-                                image: NetworkImage(bookList.previewImages[0]),
+                                image: NetworkImage(bookList.coverUrl!),
                                 fit: BoxFit.cover)
                             : null,
                       ),
-                      child: bookList.previewImages.isEmpty
+                      child: bookList.coverUrl == null
                           ? const Icon(Icons.folder_open,
                               size: 40, color: Colors.grey)
                           : null,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(bookList.title, // Gunakan .title bukan .name
+                  Text(bookList.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -164,7 +164,7 @@ class _JournalScreenState extends State<JournalScreen> {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
-      selectedColor: const Color(0xFF5C6BC0).withValues(),
+      selectedColor: const Color(0xFF5C6BC0).withValues(alpha: 0.2),
       checkmarkColor: const Color(0xFF5C6BC0),
       onSelected: (val) => setStateDialog(() =>
           val ? selectedDays.add(dayIndex) : selectedDays.remove(dayIndex)),
@@ -235,7 +235,7 @@ class _JournalScreenState extends State<JournalScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: const Color(0xFF5C6BC0).withValues(),
+                      color: const Color(0xFF5C6BC0).withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 5))
                 ],
@@ -248,7 +248,8 @@ class _JournalScreenState extends State<JournalScreen> {
                         const Text("Current Streak",
                             style: TextStyle(color: Colors.white70)),
                         Icon(Icons.edit_calendar,
-                            color: Colors.white.withValues(), size: 18),
+                            color: Colors.white.withValues(alpha: 0.1),
+                            size: 18),
                       ]),
                   const SizedBox(height: 8),
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -312,16 +313,16 @@ class _JournalScreenState extends State<JournalScreen> {
               circleContent =
                   const Icon(Icons.check, size: 16, color: Color(0xFF5C6BC0));
             } else if (isScheduled && isPast) {
-              circleColor = Colors.redAccent.withValues();
+              circleColor = Colors.redAccent.withValues(alpha: 0.7);
               circleContent =
                   const Icon(Icons.close, size: 16, color: Colors.white);
             } else if (isScheduled && isToday) {
-              circleColor = Colors.white.withValues();
+              circleColor = Colors.white.withValues(alpha: 0.9);
               isClickable = true;
             } else if (isScheduled) {
-              circleColor = Colors.white.withValues();
+              circleColor = Colors.white.withValues(alpha: 0.7);
             } else {
-              circleColor = Colors.black.withValues();
+              circleColor = Colors.black.withValues(alpha: 0.1);
             }
 
             return Column(
@@ -437,7 +438,7 @@ class _JournalScreenState extends State<JournalScreen> {
                 border: Border.all(color: Colors.grey.shade200), // Border halus
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.grey.withValues(),
+                      color: Colors.grey.withValues(alpha: 0.1),
                       blurRadius: 5,
                       offset: const Offset(0, 2))
                 ],

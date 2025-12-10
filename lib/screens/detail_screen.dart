@@ -82,7 +82,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                  color: _primaryColor.withValues(),
+                                  color: _primaryColor.withValues(alpha : 0.1),
                                   borderRadius: BorderRadius.circular(8)),
                               child: Icon(Icons.bookmark_added,
                                   color: _primaryColor),
@@ -476,8 +476,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         errorBuilder: (_, __, ___) =>
                             Container(color: Colors.grey[200]),
                       ),
-                      // Pakai withOpacity atau withValues tergantung versi Flutter
-                      Container(color: Colors.white.withValues()),
+                      Container(color: Colors.white.withValues(alpha : 0.6)),
 
                       Padding(
                         padding: const EdgeInsets.only(bottom: 20),
@@ -491,7 +490,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withValues(),
+                                      color: Colors.black.withValues(alpha : 0.2),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10)),
                                 ],
@@ -614,7 +613,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
-                      colors: [Colors.white, Colors.white.withValues()],
+                      colors: [Colors.white, Colors.white.withValues(alpha : 0.0)],
                       stops: const [0.6, 1.0])),
               child: Row(
                 children: [

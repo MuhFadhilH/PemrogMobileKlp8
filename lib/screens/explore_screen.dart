@@ -177,9 +177,9 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget _buildGenreCard(Map<String, dynamic> genre) {
     return Container(
       decoration: BoxDecoration(
-        color: genre['color'].withValues(),
+        color: genre['color'].withValues(alpha : 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: genre['color'].withValues()),
+        border: Border.all(color: genre['color'].withValues(alpha : 0.3)),
       ),
       child: Material(
         color: Colors.transparent,
