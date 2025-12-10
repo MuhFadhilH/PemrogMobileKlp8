@@ -8,18 +8,14 @@ android {
     namespace = "com.example.biblio"
     compileSdk = flutter.compileSdkVersion
     
-    // 1. UBAH BAGIAN INI (Mengatur versi NDK secara manual)
+    // Pastikan versi NDK ini sudah terinstall di Android Studio kamu
     ndkVersion = "27.0.12077973"
 
     compileOptions {
-<<<<<<< HEAD
-        // 2. TAMBAHKAN BARIS INI (Mengaktifkan Desugaring)
+        // --- INI BAGIAN YANG SEBELUMNYA KURANG ---
         isCoreLibraryDesugaringEnabled = true
-        
-=======
-        isCoreLibraryDesugaringEnabled = true
+        // -----------------------------------------
 
->>>>>>> 71de3c5bb23d261c25e217088207113ddcc25795
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -29,14 +25,15 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.contoh" // Pastikan ID ini sesuai keinginanmu
-        minSdk = 33
+        applicationId = "com.example.contoh" 
+        
+        // Catatan: minSdk 33 berarti aplikasi hanya jalan di Android 13 ke atas.
+        // Jika ingin support HP lama, ubah ke 21 atau 23.
+        minSdk = 33 
+        
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
-        // Opsional: Jika error multidex muncul nanti, tambahkan ini:
-        // multiDexEnabled = true 
     }
 
     buildTypes {
@@ -46,25 +43,11 @@ android {
     }
 }
 
-<<<<<<< HEAD
-=======
-dependencies {
-    // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
-
-    // Add the dependencies for Firebase products you want to use
-    // When using the BoM, don't specify versions in Firebase dependencies
-    // implementation("com.google.firebase:firebase-analytics")
-
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
-}
-
->>>>>>> 71de3c5bb23d261c25e217088207113ddcc25795
 flutter {
     source = "../.."
 }
 
-// 3. TAMBAHKAN BLOK DEPENDENCIES INI DI BAGIAN PALING BAWAH
 dependencies {
+    // Dependency ini wajib ada untuk desugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
