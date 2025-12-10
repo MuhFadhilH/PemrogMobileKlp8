@@ -96,7 +96,7 @@ class FirestoreService {
         .collection('users')
         .doc(user.uid)
         .collection('reading_list')
-        .orderBy('addedAt', descending: true);
+        .orderBy('createdAt', descending: true);
 
     if (filterStatus != null && filterStatus != BookStatus.none) {
       query = query.where('readingStatus',
@@ -130,7 +130,7 @@ class FirestoreService {
     await docRef.set({
       ...book.toMap(),
       'readingStatus': status.toFirestoreString(),
-      'addedAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -273,7 +273,7 @@ class FirestoreService {
       // 4. Tulis buku baru ke sub-collection 'books'
       transaction.set(bookRef, {
         ...book.toMap(), // Spread operator untuk ambil semua data buku
-        'addedAt':
+        'createdAt':
             FieldValue.serverTimestamp(), // <--- WAJIB ADA untuk sorting!
       });
     });
@@ -398,7 +398,7 @@ class FirestoreService {
         .collection('custom_book_lists')
         .doc(listId)
         .collection('books')
-        .orderBy('addedAt', descending: true)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -429,7 +429,7 @@ class FirestoreService {
   // Ini adalah trik sederhana untuk prefix search.
   Future<List<UserModel>> searchUsers(String query) async {
     if (query.isEmpty) return [];
-    
+
     // Pastikan field 'username' di firestore konsisten lowercase jika ingin case-insensitive
     final snapshot = await _db
         .collection('users')
@@ -463,7 +463,8 @@ class FirestoreService {
     if (query.isEmpty) return [];
 
     final snapshot = await _db
-        .collectionGroup('custom_book_lists') // Menggunakan collectionGroup karena list ada di sub-collection user
+        .collectionGroup(
+            'custom_book_lists') // Menggunakan collectionGroup karena list ada di sub-collection user
         .where('name', isGreaterThanOrEqualTo: query)
         .where('name', isLessThan: '${query}z')
         .get();
