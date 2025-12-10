@@ -11,6 +11,76 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // TAMBAHKAN METHOD INI
+  Future<void> addBookToList({
+    required String listId,
+    required String ownerId,
+    required Book book,
+  }) async {
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) throw Exception("User not logged in");
+
+      // Gunakan path yang sama dengan fungsi lainnya: custom_book_lists
+      final listDocRef = _db
+          .collection('users')
+          .doc(ownerId)
+          .collection('custom_book_lists')
+          .doc(listId);
+
+      // 1. Cek apakah buku sudah ada dalam list
+      final bookRef = listDocRef.collection('books').doc(book.id);
+      final bookDoc = await bookRef.get();
+
+      if (bookDoc.exists) {
+        throw Exception("Buku ini sudah ada di dalam list.");
+      }
+
+      // 2. Tambahkan buku ke subcollection
+      await bookRef.set({
+        ...book.toMap(),
+        'addedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 3. Update bookCount
+      await listDocRef.update({
+        'bookCount': FieldValue.increment(1),
+      });
+
+      // 4. Update previewImages jika ada field tersebut
+      final listDoc = await listDocRef.get();
+      if (listDoc.exists) {
+        final data = listDoc.data() as Map<String, dynamic>;
+        List<String> currentImages = [];
+
+        // Cek format data yang ada
+        if (data.containsKey('previewImages')) {
+          currentImages = List<String>.from(data['previewImages'] ?? []);
+        } else if (data.containsKey('coverUrl') && data['coverUrl'] != null) {
+          currentImages = [data['coverUrl']];
+        }
+
+        // Tambahkan thumbnail buku baru (maksimal 4)
+        if (book.thumbnailUrl.isNotEmpty) {
+          currentImages.insert(0, book.thumbnailUrl);
+          if (currentImages.length > 4) {
+            currentImages = currentImages.sublist(0, 4);
+          }
+
+          await listDocRef.update({
+            'previewImages': currentImages,
+          });
+        }
+      }
+
+      print("Buku berhasil ditambahkan ke list: ${book.title}");
+    } catch (e) {
+      print('Error adding book to list: $e');
+      rethrow;
+    }
+  }
+
+  // Method yang sudah ada sebelumnya dengan sedikit perbaikan
   Stream<DocumentSnapshot> getUserProfileStream() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -48,6 +118,19 @@ class FirestoreService {
     final agg = await _db
         .collection('reviews')
         .where('userId', isEqualTo: user.uid)
+        .count()
+        .get();
+    return agg.count ?? 0;
+  }
+
+  // TAMBAH method getBookListCount yang lebih tepat
+  Future<int> getBookListCount() async {
+    User? user = _auth.currentUser;
+    if (user == null) return 0;
+    final agg = await _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('custom_book_lists')
         .count()
         .get();
     return agg.count ?? 0;
@@ -174,8 +257,10 @@ class FirestoreService {
         .add({
       'name': listName,
       'userId': user.uid,
+      'ownerId': user.uid, // Tambahkan ownerId untuk konsistensi
+      'ownerName': user.displayName ?? 'Bibliomate User',
       'bookCount': 0,
-      'coverUrl': null,
+      'previewImages': [], // Gunakan previewImages bukan coverUrl
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -221,12 +306,9 @@ class FirestoreService {
       Map<String, dynamic> listData = listSnap.data() as Map<String, dynamic>;
 
       int currentCount = listData['bookCount'] ?? 0;
-      String? currentCover =
-          listData.containsKey('coverUrl') ? listData['coverUrl'] : null;
 
       transaction.update(listRef, {
         'bookCount': currentCount + 1,
-        'coverUrl': currentCover ?? book.thumbnailUrl,
       });
 
       transaction.set(bookRef, {
@@ -501,24 +583,24 @@ class FirestoreService {
     required String bookId,
   }) async {
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final userId = _auth.currentUser?.uid;
       if (userId == null) throw Exception("User not logged in");
 
       if (userId != ownerId) throw Exception("Not authorized");
 
-      await FirebaseFirestore.instance
+      await _db
           .collection('users')
           .doc(ownerId)
-          .collection('bookLists')
+          .collection('custom_book_lists')
           .doc(listId)
           .collection('books')
           .doc(bookId)
           .delete();
 
-      await FirebaseFirestore.instance
+      await _db
           .collection('users')
           .doc(ownerId)
-          .collection('bookLists')
+          .collection('custom_book_lists')
           .doc(listId)
           .update({
         'bookCount': FieldValue.increment(-1),
@@ -527,18 +609,5 @@ class FirestoreService {
       print("Error removing book from list: $e");
       rethrow;
     }
-  }
-
-  Future<int> getBookListCount() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) return 0;
-
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('bookLists')
-        .get();
-
-    return snapshot.docs.length;
   }
 }

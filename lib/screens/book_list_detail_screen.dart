@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan import Auth
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_list_model.dart';
 import '../models/book_model.dart';
 import '../services/firestore_service.dart';
@@ -14,7 +14,6 @@ class BookListDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final FirestoreService firestoreService = FirestoreService();
 
-    // 1. Cek apakah User yang login adalah Pemilik List ini
     final currentUser = FirebaseAuth.instance.currentUser;
     final isOwner = currentUser != null && currentUser.uid == bookList.ownerId;
 
@@ -22,7 +21,6 @@ class BookListDetailScreen extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          // Kirim ID List dan Owner ID
           builder: (_) => LogSearchPage(
               targetBookListId: bookList.id, targetOwnerId: bookList.ownerId),
         ),
@@ -38,7 +36,6 @@ class BookListDetailScreen extends StatelessWidget {
         elevation: 0,
         foregroundColor: Colors.black,
         actions: [
-          // 2. Hanya tampilkan tombol DELETE & ADD jika user adalah PEMILIK
           if (isOwner) ...[
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -55,7 +52,6 @@ class BookListDetailScreen extends StatelessWidget {
                       ),
                       TextButton(
                         onPressed: () async {
-                          // Panggil service delete (pastikan fungsinya ada di service)
                           await firestoreService
                               .deleteBookListModel(bookList.id);
                           if (context.mounted) {
@@ -79,7 +75,6 @@ class BookListDetailScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Book>>(
-        // Menggunakan fungsi yang membutuhkan ownerId agar bisa baca list orang lain
         stream: firestoreService.getBooksInList(
             listId: bookList.id, ownerId: bookList.ownerId),
         builder: (context, snapshot) {
@@ -96,7 +91,6 @@ class BookListDetailScreen extends StatelessWidget {
                   const Icon(Icons.playlist_add, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   const Text("List ini masih kosong."),
-                  // Tombol tambah di tengah juga hanya muncul jika owner
                   if (isOwner)
                     TextButton(
                       onPressed: goToAddBooks,
@@ -124,14 +118,11 @@ class BookListDetailScreen extends StatelessWidget {
                 title: Text(book.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(book.author, maxLines: 1),
-
-                // Tombol Hapus per Buku (Hanya muncul jika Owner)
                 trailing: isOwner
                     ? IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
                             color: Colors.red),
                         onPressed: () {
-                          // Tampilkan dialog konfirmasi
                           showDialog(
                             context: context,
                             builder: (ctx) => AlertDialog(
@@ -145,14 +136,13 @@ class BookListDetailScreen extends StatelessWidget {
                                 ),
                                 TextButton(
                                   onPressed: () async {
-                                    Navigator.pop(ctx); // Tutup dialog
+                                    Navigator.pop(ctx);
                                     try {
                                       await firestoreService.removeBookFromList(
                                         listId: bookList.id,
                                         ownerId: bookList.ownerId,
                                         bookId: book.id,
                                       );
-                                      // StreamBuilder akan otomatis refresh
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
@@ -184,8 +174,7 @@ class BookListDetailScreen extends StatelessWidget {
                           );
                         },
                       )
-                    : null, // Jika bukan owner, tidak ada tombol hapus
-
+                    : null,
                 onTap: () {
                   Navigator.push(
                       context,
