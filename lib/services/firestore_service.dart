@@ -271,7 +271,11 @@ class FirestoreService {
       });
 
       // 4. Tulis buku baru ke sub-collection 'books'
-      transaction.set(bookRef, book.toMap());
+      transaction.set(bookRef, {
+        ...book.toMap(), // Spread operator untuk ambil semua data buku
+        'addedAt':
+            FieldValue.serverTimestamp(), // <--- WAJIB ADA untuk sorting!
+      });
     });
   }
 
