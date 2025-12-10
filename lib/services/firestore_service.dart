@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/book_list_model.dart';
 import '../models/book_model.dart';
 import '../models/book_status.dart';
@@ -591,5 +592,20 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map((doc) {
               return (doc['date'] as Timestamp).toDate();
             }).toList());
+  }
+
+  Future<UserModel?> getUserById(String userId) async {
+    try {
+      final doc = await _db.collection('users').doc(userId).get();
+      if (doc.exists) {
+        return UserModel.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error getting user: $e");
+      }
+      return null;
+    }
   }
 }
