@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/book_model.dart';
+import '../models/book_list_model.dart'; // <-- PENTING: Untuk data list buku
 import '../services/api_service.dart';
 import 'detail_screen.dart';
 import 'genre_books_screen.dart'; // Import file baru tadi
+import '../services/firestore_service.dart'; // <-- PENTING: Untuk akses database
+import '../models/user_model.dart'; // <-- PENTING: Untuk data user
+import '../models/review_model.dart';
+import 'public_profile_screen.dart'; // <-- PENTING: Untuk data review
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -41,7 +46,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
 
     // PERBAIKAN LOGIKA LISTENER:
     // Kita hanya mengaktifkan search saat fokus didapat.
@@ -83,9 +88,10 @@ class _ExploreScreenState extends State<ExploreScreen>
                 onTap: (_) => _searchFocusNode.unfocus(),
                 tabs: const [
                   Tab(text: "Books"),
-                  Tab(text: "Lists"),
+                  Tab(text: "People"),
                   Tab(text: "Reviews"),
                   Tab(text: "Authors"),
+                  Tab(text: "Lists"),
                 ],
               )
             : null,
@@ -171,9 +177,9 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget _buildGenreCard(Map<String, dynamic> genre) {
     return Container(
       decoration: BoxDecoration(
-        color: genre['color'].withOpacity(0.1),
+        color: genre['color'].withValues(),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: genre['color'].withOpacity(0.3)),
+        border: Border.all(color: genre['color'].withValues()),
       ),
       child: Material(
         color: Colors.transparent,
@@ -217,9 +223,11 @@ class _ExploreScreenState extends State<ExploreScreen>
       controller: _tabController,
       children: [
         _SearchResultList(query: query, type: "books"),
-        const Center(child: Text("Search Lists (Coming Soon)")),
-        const Center(child: Text("Search Reviews (Coming Soon)")),
-        const Center(child: Text("Search Authors (Coming Soon)")),
+        _SearchResultList(query: query, type: "people"), // <-- Tambah Ini
+        _SearchResultList(query: query, type: "reviews"),
+        _SearchResultList(query: query, type: "authors"),
+        _SearchResultList(query: query, type: "lists"),
+        // Center(child: Text("Search Lists (Coming Soon)")),
       ],
     );
   }
@@ -241,29 +249,27 @@ class _SearchResultList extends StatefulWidget {
 class _SearchResultListState extends State<_SearchResultList>
     with AutomaticKeepAliveClientMixin {
   final ApiService _apiService = ApiService();
-  List<Book> _results = [];
+  final FirestoreService _firestoreService =
+      FirestoreService(); // Panggil Firestore
+
+  List<dynamic> _results =
+      []; // Dynamic karena isinya bisa Book, User, atau Review
   bool _isLoading = false;
-  bool _hasSearched =
-      false; // Penanda agar tidak fetch berulang kali jika data sudah ada
+  bool _hasSearched = false;
 
   @override
   void initState() {
     super.initState();
-    // PERBAIKAN UTAMA: Langsung cari saat widget pertama kali dibuat/dibuka kembali
-    if (widget.query.isNotEmpty) {
-      _fetchResults();
-    }
+    if (widget.query.isNotEmpty) _fetchResults();
   }
 
   @override
   void didUpdateWidget(covariant _SearchResultList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Jika query berubah (user ngetik), cari ulang
     if (oldWidget.query != widget.query) {
       if (widget.query.isNotEmpty) {
         _fetchResults();
       } else {
-        // Jika teks dihapus jadi kosong, bersihkan hasil
         setState(() => _results = []);
       }
     }
@@ -274,15 +280,34 @@ class _SearchResultListState extends State<_SearchResultList>
     setState(() => _isLoading = true);
 
     try {
-      // Logic pembeda tipe pencarian (persiapan masa depan)
-      if (widget.type == 'books') {
-        final res = await _apiService.fetchBooks(widget.query);
-        if (mounted) setState(() => _results = res);
-      } else {
-        // Dummy logic untuk tab lain (Authors/Lists) biar gak error
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) setState(() => _results = []);
+      List<dynamic> res = [];
+
+      // LOGIKA SWITCH SESUAI TAB
+      switch (widget.type) {
+        case 'books':
+          res = await _apiService.fetchBooks(widget.query);
+          break;
+
+        case 'authors':
+          // Google Books support pencarian khusus penulis "inauthor:nama"
+          res = await _apiService.fetchBooks('inauthor:${widget.query}');
+          break;
+
+        case 'people':
+          res = await _firestoreService.searchUsers(widget.query);
+          break;
+
+        case 'reviews':
+          res = await _firestoreService.searchReviews(widget.query);
+          break;
+
+        case 'lists': // <-- Tambahkan Case ini
+          // Pastikan Anda sudah uncomment Tab 'Lists' di AppBar
+          res = await _firestoreService.searchBookListModels(widget.query);
+          break;
       }
+
+      if (mounted) setState(() => _results = res);
     } catch (e) {
       debugPrint("Err: $e");
     } finally {
@@ -295,59 +320,275 @@ class _SearchResultListState extends State<_SearchResultList>
     }
   }
 
-  // Wajib true agar state tab tersimpan (tidak reload terus saat ganti tab)
   @override
   bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Wajib dipanggil karena pakai Mixin
+    super.build(context);
 
     if (widget.query.isEmpty) {
-      return const Center(child: Text("Ketik sesuatu untuk mencari..."));
+      return const Center(child: Text("Start typing to search..."));
     }
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    // Jika sudah mencari tapi hasil kosong
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_hasSearched && _results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off, size: 48, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text("Tidak ditemukan hasil untuk '${widget.query}'",
-                style: TextStyle(color: Colors.grey[600])),
-          ],
-        ),
-      );
+      return Center(child: Text("No results found for '${widget.query}'"));
     }
 
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _results.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final book = _results[index];
-        return ListTile(
-          leading: Image.network(
-            book.thumbnailUrl,
-            width: 40,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.book, color: Colors.grey),
+        final item = _results[index];
+
+        // TAMPILAN 1: BUKU & AUTHOR (Strukturnya sama: Book Model)
+        if (widget.type == 'books' || widget.type == 'authors') {
+          return _buildBookTile(item);
+        }
+        // TAMPILAN 2: PEOPLE (User Model)
+        else if (widget.type == 'people') {
+          return _buildUserTile(item);
+        }
+        // TAMPILAN 3: REVIEWS (Review Model)
+        else if (widget.type == 'reviews') {
+          return _buildReviewTile(item);
+        }
+        // TAMPILAN 4: LISTS / SHELVES
+        else if (widget.type == 'lists') {
+          return _buildBookListModelTile(item);
+        }
+
+        return const SizedBox();
+      },
+    );
+  }
+
+  // --- WIDGET TILE KHUSUS ---
+
+  Widget _buildBookTile(Book book) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.network(
+          book.thumbnailUrl,
+          width: 45,
+          height: 70,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Container(width: 45, color: Colors.grey[200]),
+        ),
+      ),
+      title: Text(book.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(book.author, maxLines: 1),
+      onTap: () {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => DetailScreen(book: book)));
+      },
+    );
+  }
+
+  Widget _buildUserTile(UserModel user) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      // Foto Profil
+      leading: CircleAvatar(
+        radius: 28,
+        backgroundColor: Colors.grey[200],
+        backgroundImage:
+            user.photoUrl.isNotEmpty ? NetworkImage(user.photoUrl) : null,
+        child: user.photoUrl.isEmpty
+            ? const Icon(Icons.person, color: Colors.grey)
+            : null,
+      ),
+      // Nama (Sekarang pasti muncul Ricardo)
+      title: Text(user.displayName,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      // Navigasi saat ditekan (Tanpa tombol View)
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PublicProfileScreen(user: user),
           ),
-          title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(book.author, maxLines: 1),
-          onTap: () {
-            // Pastikan DetailScreen sudah diimport di file ini
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => DetailScreen(book: book)));
-          },
         );
       },
+    );
+  }
+
+  Widget _buildReviewTile(Review review) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey
+                .withValues(alpha: 0.05), // Perbaikan sintaks opacity modern
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Foto Profil & Nama User (Penulis Review)
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 12,
+                backgroundColor: Colors.grey,
+                child: Icon(Icons.person, size: 14, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              // Karena kita belum simpan displayName di Review, kita pakai 'User' dulu
+              // Saran: Nanti update review_model untuk simpan 'userDisplayName' juga
+              const Text(
+                "Bibliomate User",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const Spacer(),
+              Icon(Icons.star, size: 14, color: Colors.amber[700]),
+              Text(
+                " ${review.rating}",
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ],
+          ),
+          const Divider(height: 16),
+
+          // Body: Cover Buku & Isi Review
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover Buku Kecil
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  review.bookThumbnailUrl,
+                  width: 40,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: Colors.grey[200]),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Teks Review
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.bookTitle,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      review.reviewText,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookListModelTile(BookListModel shelf) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          // Preview Tumpukan Buku (Stack Effect)
+          SizedBox(
+            width: 60,
+            height: 80,
+            child: Stack(
+              children: [
+                if (shelf.previewImages.length > 1)
+                  Positioned(
+                    top: 0,
+                    left: 10,
+                    child: Container(
+                        width: 45, height: 70, color: Colors.grey[300]),
+                  ),
+                if (shelf.previewImages.isNotEmpty)
+                  Positioned(
+                    top: 10,
+                    left: 0,
+                    child: Image.network(
+                      shelf.previewImages[0],
+                      width: 50,
+                      height: 70,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Container(color: Colors.grey[400]),
+                    ),
+                  )
+                else
+                  Container(
+                      color: Colors.grey[300], child: const Icon(Icons.layers)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Info List
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  shelf.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  "by ${shelf.ownerName}",
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    "${shelf.bookCount} books",
+                    style: const TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
