@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan import Auth
 import '../models/book_list_model.dart';
 import '../models/book_model.dart';
 import '../services/firestore_service.dart';
@@ -6,20 +7,26 @@ import 'detail_screen.dart';
 import 'log_search_page.dart';
 
 class BookListDetailScreen extends StatelessWidget {
-  final BookListModel bookList; // Pastikan pakai BookListModel
+  final BookListModel bookList;
   const BookListDetailScreen({super.key, required this.bookList});
 
   @override
   Widget build(BuildContext context) {
     final FirestoreService firestoreService = FirestoreService();
+    
+    // 1. Cek apakah User yang login adalah Pemilik List ini
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isOwner = currentUser != null && currentUser.uid == bookList.ownerId;
 
     void goToAddBooks() {
       Navigator.push(
         context,
         MaterialPageRoute(
-          // Kirim ID List dan ID Pemiliknya agar LogSearchPage tahu mau simpan kemana
+          // Kirim ID List dan Owner ID
           builder: (_) => LogSearchPage(
-              targetBookListId: bookList.id, targetOwnerId: bookList.ownerId),
+            targetBookListId: bookList.id, 
+            targetOwnerId: bookList.ownerId
+          ),
         ),
       );
     }
@@ -27,27 +34,52 @@ class BookListDetailScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        // PERBAIKAN: Gunakan .title (bukan .name)
         title: Text(bookList.title,
             style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: () {
-              // ... (kode dialog hapus tetap sama)
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: goToAddBooks,
-          ),
+          // 2. Hanya tampilkan tombol DELETE & ADD jika user adalah PEMILIK
+          if (isOwner) ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text("Hapus List?"),
+                    content: const Text("Tindakan ini tidak bisa dibatalkan."),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text("Batal"),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          // Panggil service delete (pastikan fungsinya ada di service)
+                          await firestoreService.deleteBookListModel(bookList.id);
+                          if (context.mounted) {
+                            Navigator.pop(ctx); 
+                            Navigator.pop(context); 
+                          }
+                        },
+                        child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: goToAddBooks,
+            ),
+          ]
         ],
       ),
       body: StreamBuilder<List<Book>>(
-        // PERBAIKAN: Kirim ownerId juga karena list ada di dalam dokumen user
+        // Menggunakan fungsi yang membutuhkan ownerId agar bisa baca list orang lain
         stream: firestoreService.getBooksInList(
             listId: bookList.id, ownerId: bookList.ownerId),
         builder: (context, snapshot) {
@@ -64,10 +96,12 @@ class BookListDetailScreen extends StatelessWidget {
                   const Icon(Icons.playlist_add, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   const Text("List ini masih kosong."),
-                  TextButton(
-                    onPressed: goToAddBooks,
-                    child: const Text("Tambah Buku"),
-                  ),
+                  // Tombol tambah di tengah juga hanya muncul jika owner
+                  if (isOwner)
+                    TextButton(
+                      onPressed: goToAddBooks,
+                      child: const Text("Tambah Buku"),
+                    ),
                 ],
               ),
             );
@@ -90,13 +124,17 @@ class BookListDetailScreen extends StatelessWidget {
                 title: Text(book.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(book.author, maxLines: 1),
-                trailing: IconButton(
-                  icon: const Icon(Icons.remove_circle_outline,
-                      color: Colors.grey),
-                  onPressed: () {
-                    // TODO: Tambahkan fungsi hapus buku dari list di sini
-                  },
-                ),
+                
+                // Tombol Hapus per Buku (Hanya muncul jika Owner)
+                trailing: isOwner 
+                  ? IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+                      onPressed: () {
+                         // TODO: Tambahkan fungsi hapus buku spesifik jika diperlukan
+                      },
+                    )
+                  : null, // Jika bukan owner, tidak ada tombol hapus
+
                 onTap: () {
                   Navigator.push(
                       context,

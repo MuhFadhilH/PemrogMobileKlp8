@@ -402,34 +402,6 @@ class FirestoreService {
           .toList();
     });
   }
-
-  // 2. Tambah Buku ke List
-  Future<void> addBookToList({
-    required String listId,
-    required String ownerId,
-    required Book book,
-  }) async {
-    final listRef = _db
-        .collection('users')
-        .doc(ownerId)
-        .collection('custom_book_lists')
-        .doc(listId);
-
-    // Tambah ke sub-collection 'books'
-    await listRef.collection('books').doc(book.id).set({
-      ...book.toMap(),
-      'addedAt': FieldValue.serverTimestamp(),
-    });
-
-    // Update jumlah buku (bookCount) di parent list
-    // Menggunakan FieldValue.increment agar aman jika ada yg update bersamaan
-    await listRef.update({
-      'bookCount': FieldValue.increment(1),
-      // Update coverUrl dengan buku terbaru jika belum ada cover
-      'coverUrl': book.thumbnailUrl,
-    });
-  }
-
   // ... (KODE LAMA TETAP DISINI: User Profile, Reading List, Schedule, Custom List) ...
 
   // ===========================================================================
