@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 // Import halaman-halaman yang akan ditampilkan
-import 'screens/home_screen.dart'; 
+import 'screens/home_screen.dart';
 import 'screens/log_search_page.dart';
 import 'screens/profile_screen.dart';
 import 'screens/explore_screen.dart';
@@ -30,7 +30,13 @@ class _MainNavState extends State<MainNav> {
       // LOGIKA BARU: PUSH KE HALAMAN BARU (FULL SCREEN)
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const LogSearchPage()),
+        MaterialPageRoute(
+          // Hapus 'const' jika argumen tidak konstan, dan perbaiki koma ganda
+          builder: (context) => const LogSearchPage(
+            targetBookListId: '', // String kosong karena pencarian umum
+            targetOwnerId: '', // String kosong karena pencarian umum
+          ),
+        ),
       );
     } else {
       setState(() {

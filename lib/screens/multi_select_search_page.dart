@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
-import '../services/api_service.dart'; // GANTI INI
+import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
 class MultiSelectSearchPage extends StatefulWidget {
@@ -19,7 +19,7 @@ class MultiSelectSearchPage extends StatefulWidget {
 }
 
 class _MultiSelectSearchPageState extends State<MultiSelectSearchPage> {
-  final ApiService _apiService = ApiService(); // GANTI INI
+  final ApiService _apiService = ApiService();
   final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -40,7 +40,6 @@ class _MultiSelectSearchPageState extends State<MultiSelectSearchPage> {
     });
 
     try {
-      // GANTI INI: pakai fetchBooks dari ApiService
       final results = await _apiService.fetchBooks(query);
       setState(() {
         _searchResults = results;
@@ -50,7 +49,6 @@ class _MultiSelectSearchPageState extends State<MultiSelectSearchPage> {
       setState(() {
         _isLoading = false;
       });
-      // Optional: tampilkan error snackbar
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -88,11 +86,15 @@ class _MultiSelectSearchPageState extends State<MultiSelectSearchPage> {
       int addedCount = 0;
       for (String bookId in _selectedBookIds) {
         final book = _searchResults.firstWhere((b) => b.id == bookId);
-        await _firestoreService.addBookToList(
-          listId: widget.targetBookListId,
-          ownerId: widget.targetOwnerId,
-          book: book,
-        );
+
+        // ========================================================
+        // PERBAIKAN DI SINI
+        // Menggunakan nama method yang benar: addBookToCustomList
+        // Dan menyesuaikan parameternya
+        // ========================================================
+        await _firestoreService.addBookToCustomList(
+            book, widget.targetBookListId);
+
         addedCount++;
       }
 
