@@ -6,14 +6,17 @@ class ApiService {
   // URL Google Books API
   static const String _baseUrl = 'https://www.googleapis.com/books/v1/volumes';
 
-  // Fungsi fetchBooks yang dicari-cari oleh HomeScreen
-  Future<List<Book>> fetchBooks(String query) async {
+  // Update: Menambahkan parameter startIndex & maxResults untuk Infinite Scroll
+  // Default values diset agar kode lama di file lain tetap jalan tanpa error.
+  Future<List<Book>> fetchBooks(String query,
+      {int startIndex = 0, int maxResults = 20}) async {
     // Kalau query kosong, jangan request ke internet
     if (query.trim().isEmpty) return [];
 
     try {
-      // Request ke Google Books API
-      final response = await http.get(Uri.parse('$_baseUrl?q=$query'));
+      // Request ke Google Books API dengan parameter pagination
+      final response = await http.get(Uri.parse(
+          '$_baseUrl?q=$query&startIndex=$startIndex&maxResults=$maxResults'));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
