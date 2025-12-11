@@ -3,7 +3,6 @@ import '../models/user_model.dart';
 import '../models/review_model.dart';
 import '../models/book_list_model.dart'; // Pastikan pakai BookListModel
 import '../services/firestore_service.dart';
-import 'detail_screen.dart'; // Navigasi ke detail buku
 import 'book_list_detail_screen.dart'; // Navigasi ke detail list
 
 class PublicProfileScreen extends StatelessWidget {
