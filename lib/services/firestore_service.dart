@@ -5,6 +5,7 @@ import '../models/book_model.dart';
 import '../models/book_status.dart';
 import '../models/review_model.dart';
 import '../models/user_model.dart';
+import '../models/user_preference_model.dart'; // TAMBAHKAN IMPORT INI
 import 'notification_service.dart';
 
 class FirestoreService {
@@ -80,6 +81,51 @@ class FirestoreService {
     }
   }
 
+  // ============================
+  // METHOD USER PREFERENCE BARU
+  // ============================
+
+  // Save user preferences
+  Future<void> saveUserPreferences(UserPreference preference) async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    await _db.collection('users').doc(user.uid).update({
+      'preferences': preference.toMap(),
+    });
+  }
+
+  // Get user preferences stream
+  Stream<UserPreference> getUserPreferencesStream() {
+    User? user = _auth.currentUser;
+    if (user == null) return Stream.value(UserPreference());
+
+    return _db.collection('users').doc(user.uid).snapshots().map((doc) {
+      if (!doc.exists) return UserPreference();
+      final data = doc.data() as Map<String, dynamic>;
+
+      if (data.containsKey('preferences')) {
+        return UserPreference.fromMap(data['preferences']);
+      }
+      return UserPreference();
+    });
+  }
+
+  // Get user preferences once
+  Future<UserPreference> getUserPreferences() async {
+    User? user = _auth.currentUser;
+    if (user == null) return UserPreference();
+
+    final doc = await _db.collection('users').doc(user.uid).get();
+    if (!doc.exists) return UserPreference();
+
+    final data = doc.data() as Map<String, dynamic>;
+    if (data.containsKey('preferences')) {
+      return UserPreference.fromMap(data['preferences']);
+    }
+    return UserPreference();
+  }
+
   // Method yang sudah ada sebelumnya dengan sedikit perbaikan
   Stream<DocumentSnapshot> getUserProfileStream() {
     User? user = _auth.currentUser;
@@ -95,6 +141,8 @@ class FirestoreService {
     await _db.collection('users').doc(user.uid).update({
       'username': username,
       'bio': bio,
+      // Tambahkan preferences jika belum ada saat update profile
+      'preferences': FieldValue.arrayUnion([]),
     });
 
     await user.updateDisplayName(username);
