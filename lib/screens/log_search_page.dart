@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
 class LogSearchPage extends StatefulWidget {
-  // Parameter Opsional (Untuk mode "Tambah Buku ke List")
-  final String? targetBookListId;
-  final String? targetOwnerId;
+  final String targetBookListId;
+  final String targetOwnerId;
 
   const LogSearchPage({
     super.key,
-    this.targetBookListId,
-    this.targetOwnerId,
+    required this.targetBookListId,
+    required this.targetOwnerId,
   });
 
   @override
@@ -19,377 +19,262 @@ class LogSearchPage extends StatefulWidget {
 }
 
 class _LogSearchPageState extends State<LogSearchPage> {
-  final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
+  final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
 
   List<Book> _searchResults = [];
-  bool _isSearching = false;
-
-  // Dummy Recent Searches
-  final List<String> _recentSearches = [
-    "Laut Bercerita",
-    "Atomic Habits",
-    "Filosofi Teras",
-    "Pulang - Leila S. Chudori",
-    "Cantik Itu Luka",
-  ];
+  List<String> _selectedBookIds = [];
+  bool _isLoading = false;
 
   void _searchBooks(String query) async {
     if (query.isEmpty) {
-      setState(() => _searchResults = []);
+      setState(() {
+        _searchResults = [];
+      });
       return;
     }
 
-    setState(() => _isSearching = true);
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final results = await _apiService.fetchBooks(query);
-      setState(() => _searchResults = results);
-    } catch (e) {
-      debugPrint("Error: $e");
-    } finally {
-      setState(() => _isSearching = false);
-    }
-  }
-
-  void _onBookTap(Book book) async {
-    // MODE 1: Tambah ke List (Jika ID List dikirim)
-    if (widget.targetBookListId != null && widget.targetOwnerId != null) {
-      _addBookToListAndExit(book);
-    }
-    // MODE 2: Tulis/Edit Review (Default)
-    else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
-      );
-    }
-  }
-
-  Future<void> _addBookToListAndExit(Book book) async {
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Menambahkan buku...")),
-      );
-
-      await FirestoreService().addBookToList(
-          listId: widget.targetBookListId!,
-          ownerId: widget.targetOwnerId!,
-          book: book);
-
-      if (!mounted) return;
-      Navigator.pop(context); // Kembali ke halaman detail list
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal: $e")),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          onChanged: _searchBooks,
-          decoration: const InputDecoration(
-            hintText: "Search books...",
-            hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
-            border: InputBorder.none,
-          ),
-          style: const TextStyle(fontSize: 18, color: Colors.black),
-        ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.grey),
-              onPressed: () {
-                _searchController.clear();
-                _searchBooks("");
-              },
-            ),
-        ],
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_searchController.text.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        children: [
-          const Text(
-            "RECENT SEARCHES",
-            style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2),
-          ),
-          const SizedBox(height: 10),
-          ..._recentSearches.map((text) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  text,
-                  style: const TextStyle(color: Colors.grey, fontSize: 16),
-                ),
-                onTap: () {
-                  _searchController.text = text;
-                  _searchBooks(text);
-                },
-              )),
-        ],
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final book = _searchResults[index];
-        return ListTile(
-          leading: Image.network(
-            book.thumbnailUrl,
-            width: 40,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.book),
-          ),
-          title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(book.author, maxLines: 1),
-          onTap: () => _onBookTap(book),
-        );
-      },
-    );
-  }
-}
-
-// =============================================================================
-// HALAMAN FORM REVIEW (LOG)
-// =============================================================================
-class LogFormPage extends StatefulWidget {
-  final Book book;
-  const LogFormPage({super.key, required this.book});
-
-  @override
-  State<LogFormPage> createState() => _LogFormPageState();
-}
-
-class _LogFormPageState extends State<LogFormPage> {
-  double _rating = 0;
-  final TextEditingController _reviewController = TextEditingController();
-  bool _isSubmitting = false;
-  bool _isLoadingData = true; // Untuk loading saat cek review lama
-
-  @override
-  void initState() {
-    super.initState();
-    _checkExistingReview();
-  }
-
-  // LOGIKA PENTING: Cek apakah user sudah pernah review buku ini?
-  void _checkExistingReview() async {
-    final existingReview =
-        await FirestoreService().getUserReviewForBook(widget.book.id);
-
-    if (existingReview != null && mounted) {
       setState(() {
-        _rating = existingReview.rating;
-        _reviewController.text = existingReview.reviewText;
+        _searchResults = results;
+        _isLoading = false;
       });
-    }
-
-    if (mounted) {
-      setState(() => _isLoadingData = false);
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Gagal mencari buku: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  void _saveReview() async {
-    if (_rating == 0) {
+  void _toggleBookSelection(Book book) {
+    setState(() {
+      if (_selectedBookIds.contains(book.id)) {
+        _selectedBookIds.remove(book.id);
+      } else {
+        _selectedBookIds.add(book.id);
+      }
+    });
+  }
+
+  Future<void> _addSelectedBooks() async {
+    if (_selectedBookIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Beri rating minimal 1 bintang ⭐")),
+        const SnackBar(content: Text("Pilih minimal satu buku")),
       );
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      // Fungsi addReview di Service sudah kita update untuk pake .set() (Upsert)
-      // Jadi kalau sudah ada review, otomatis ter-update (Edit), bukan nambah baru.
-      await FirestoreService().addReview(
-        book: widget.book,
-        rating: _rating,
-        reviewText: _reviewController.text,
-      );
+      int addedCount = 0;
+      for (String bookId in _selectedBookIds) {
+        final book = _searchResults.firstWhere((b) => b.id == bookId);
+        await _firestoreService.addBookToCustomList(
+          book,
+          widget.targetBookListId,
+        );
+        addedCount++;
+      }
 
-      if (!mounted) return;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("$addedCount buku berhasil ditambahkan"),
+            duration: const Duration(seconds: 2),
+          ),
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Jurnal berhasil disimpan!"),
-          backgroundColor: Color(0xFF5C6BC0),
-        ),
-      );
-
-      // Tutup halaman Form & Search (Balik ke tempat asal)
-      Navigator.pop(context); // Tutup Form
-      // Cek apakah halaman sebelumnya adalah Search Page, kalau iya tutup juga
-      if (Navigator.canPop(context)) {
-        // Opsional: Kalau mau langsung balik ke Home, uncomment bawah ini
-        // Navigator.pop(context);
+        Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal menyimpan: $e")),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingData) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "I Read...",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Tambah Buku ke List"),
         actions: [
-          TextButton(
-            onPressed: _isSubmitting ? null : _saveReview,
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text(
-                    "Save",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Color(0xFF5C6BC0)),
+          if (_selectedBookIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.add_circle),
+              onPressed: _addSelectedBooks,
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Cari buku...",
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _searchBooks('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onChanged: _searchBooks,
+            ),
+          ),
+          if (_selectedBookIds.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.blue[50],
+              child: Row(
+                children: [
+                  Text(
+                    "${_selectedBookIds.length} buku terpilih",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _addSelectedBooks,
+                    child: const Text("Tambah Semua"),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _searchResults.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search,
+                                size: 64, color: Colors.grey),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isEmpty
+                                  ? "Cari buku untuk ditambahkan"
+                                  : "Tidak ada hasil untuk '${_searchController.text}'",
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _searchResults.length,
+                        itemBuilder: (context, index) {
+                          final book = _searchResults[index];
+                          final isSelected = _selectedBookIds.contains(book.id);
+
+                          return Card(
+                            elevation: 1,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ListTile(
+                              leading: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(
+                                      book.thumbnailUrl,
+                                      width: 50,
+                                      height: 70,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        width: 50,
+                                        height: 70,
+                                        color: Colors.grey[200],
+                                        child: const Icon(Icons.book),
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              title: Text(
+                                book.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                book.author,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Checkbox(
+                                value: isSelected,
+                                onChanged: (value) {
+                                  _toggleBookSelection(book);
+                                },
+                              ),
+                              onTap: () {
+                                _toggleBookSelection(book);
+                              },
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 100,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 10)
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(widget.book.thumbnailUrl,
-                        fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.book.title,
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      Text(widget.book.author,
-                          style: const TextStyle(color: Colors.grey)),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today,
-                                size: 14, color: Colors.grey),
-                            SizedBox(width: 8),
-                            Text("Read on Today",
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-            const Text("Rating",
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                  5,
-                  (index) => IconButton(
-                        icon: Icon(
-                          index < _rating
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          color: const Color(0xFF5C6BC0),
-                          size: 40,
-                        ),
-                        onPressed: () => setState(() => _rating = index + 1.0),
-                      )),
-            ),
-            const Divider(height: 40),
-            TextField(
-              controller: _reviewController,
-              maxLines: null,
-              decoration: const InputDecoration(
-                hintText: "Add a review...",
-                border: InputBorder.none,
-              ),
-              style: const TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
-      ),
+      floatingActionButton: _selectedBookIds.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _addSelectedBooks,
+              icon: const Icon(Icons.add),
+              label: Text("Tambah (${_selectedBookIds.length})"),
+            )
+          : null,
     );
   }
 }

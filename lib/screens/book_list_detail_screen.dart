@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_list_model.dart';
 import '../models/book_model.dart';
+import '../models/user_model.dart';
 import '../services/firestore_service.dart';
 import 'detail_screen.dart';
 import 'log_search_page.dart';
+import 'public_profile_screen.dart';
 
 class BookListDetailScreen extends StatelessWidget {
   final BookListModel bookList;
@@ -15,26 +17,48 @@ class BookListDetailScreen extends StatelessWidget {
     final FirestoreService firestoreService = FirestoreService();
 
     final currentUser = FirebaseAuth.instance.currentUser;
-    final isOwner = currentUser != null && currentUser.uid == bookList.ownerId;
+    final bool isOwner =
+        currentUser != null && currentUser.uid == bookList.ownerId;
 
     void goToAddBooks() {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => LogSearchPage(
-              targetBookListId: bookList.id, targetOwnerId: bookList.ownerId),
+              targetBookListId: bookList.id!, targetOwnerId: bookList.ownerId),
         ),
       );
+    }
+
+    void goToOwnerProfile() async {
+      final user = await firestoreService.getUserById(bookList.ownerId);
+      if (context.mounted && user != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PublicProfileScreen(user: user)),
+        );
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Profil pengguna tidak ditemukan")),
+          );
+        }
+      }
     }
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(bookList.title,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
+        title: Text(
+          bookList.title,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           if (isOwner) ...[
             IconButton(
@@ -53,7 +77,7 @@ class BookListDetailScreen extends StatelessWidget {
                       TextButton(
                         onPressed: () async {
                           await firestoreService
-                              .deleteBookListModel(bookList.id);
+                              .deleteBookListModel(bookList.id!);
                           if (context.mounted) {
                             Navigator.pop(ctx);
                             Navigator.pop(context);
@@ -75,8 +99,10 @@ class BookListDetailScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Book>>(
-        stream: firestoreService.getBooksInList(
-            listId: bookList.id, ownerId: bookList.ownerId),
+        stream: firestoreService.getBooksInListForUser(
+          listId: bookList.id!,
+          ownerId: bookList.ownerId,
+        ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -88,7 +114,7 @@ class BookListDetailScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.playlist_add, size: 64, color: Colors.grey),
+                  Icon(Icons.playlist_add, size: 64, color: Colors.grey[300]),
                   const SizedBox(height: 16),
                   const Text("List ini masih kosong."),
                   if (isOwner)
@@ -104,87 +130,81 @@ class BookListDetailScreen extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: books.length,
-            separatorBuilder: (_, __) => const Divider(),
+            separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final book = books[index];
               return ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(book.thumbnailUrl,
-                      width: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.book)),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(
+                    book.thumbnailUrl,
+                    width: 50,
+                    height: 75,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(width: 50, color: Colors.grey[200]),
+                  ),
                 ),
-                title: Text(book.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  book.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text(book.author, maxLines: 1),
                 trailing: isOwner
                     ? IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
-                            color: Colors.red),
+                            color: Colors.grey),
                         onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text("Hapus Buku?"),
-                              content:
-                                  Text("Hapus '${book.title}' dari list ini?"),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text("Batal"),
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    Navigator.pop(ctx);
-                                    try {
-                                      await firestoreService.removeBookFromList(
-                                        listId: bookList.id,
-                                        ownerId: bookList.ownerId,
-                                        bookId: book.id,
-                                      );
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content:
-                                                Text("Buku berhasil dihapus"),
-                                            duration: Duration(seconds: 2),
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content:
-                                                Text("Error: ${e.toString()}"),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: const Text("Hapus",
-                                      style: TextStyle(color: Colors.red)),
-                                ),
-                              ],
-                            ),
-                          );
+                          _showDeleteBookDialog(
+                              context, firestoreService, bookList.id!, book.id);
                         },
                       )
                     : null,
                 onTap: () {
                   Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => DetailScreen(book: book)));
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DetailScreen(book: book),
+                    ),
+                  );
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  void _showDeleteBookDialog(BuildContext context, FirestoreService service,
+      String listId, String bookId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Hapus Buku dari List?"),
+        content: const Text("Buku ini akan dihapus dari list ini."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Batal"),
+          ),
+          TextButton(
+            onPressed: () async {
+              await service.deleteBookFromList(listId, bookId);
+              if (context.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Buku berhasil dihapus")),
+                );
+              }
+            },
+            child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
