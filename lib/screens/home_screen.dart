@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
-import '../models/user_preference_model.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 import 'detail_screen.dart';
+// import 'collection_screen.dart'; // Aktifkan jika file sudah ada
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,12 +18,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // 1. DEFINISI VARIABEL YANG SEBELUMNYA HILANG
+  final ScrollController _scrollController = ScrollController();
+  String _userName = "Pengguna";
+
   List<Book> _recommendedBooks = [];
   List<Book> _trendingBooks = [];
   List<Book> _historyBooks = [];
   bool _isLoading = true;
-  String _userName = "Pengguna";
-  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -41,7 +43,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = _auth.currentUser;
       if (user != null) {
-        _userName = user.displayName ?? "Pengguna";
+        setState(() {
+          _userName = user.displayName ?? "Pengguna";
+        });
       }
 
       final prefs = await _firestoreService.getUserPreferences();
@@ -105,76 +109,43 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverAppBar(
                       backgroundColor: Colors.white,
                       elevation: 0,
-                      expandedHeight: 140,
+                      expandedHeight: 120,
                       floating: false,
                       pinned: true,
+                      // 2. PERBAIKAN ACTIONS (Harus di dalam SliverAppBar)
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none_rounded,
+                              color: Colors.grey),
+                          onPressed: () {},
+                        ),
+                        const SizedBox(width: 16),
+                      ],
                       flexibleSpace: FlexibleSpaceBar(
                         collapseMode: CollapseMode.pin,
                         background: Container(
                           color: Colors.white,
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+                            padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text(
-                                  "Selamat Datang",
-                                  style: TextStyle(
-                                    fontSize: 14,
+                                Text(
+                                  "Halo, $_userName",
+                                  style: const TextStyle(
                                     color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        "$_userName 👋",
-                                        style: const TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    if (_recommendedBooks.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF5C6BC0)
-                                              .withOpacity(0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: const Color(0xFF5C6BC0)
-                                                .withOpacity(0.3),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.tune,
-                                                size: 12,
-                                                color: Color(0xFF5C6BC0)),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              "Personal",
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: const Color(0xFF5C6BC0),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
+                                const Text(
+                                  "Selamat Datang",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
                                 ),
                               ],
                             ),
@@ -183,70 +154,69 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                    // REKOMENDASI UTAMA
+                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+                    // 3. SECTION: COCOK UNTUKMU
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.only(
-                            left: 20, top: 20, bottom: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: _buildSectionTitle("Cocok Untukmu"),
                       ),
                     ),
+
                     SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 320,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 20, right: 20),
-                          itemCount: _recommendedBooks.length,
-                          itemBuilder: (context, index) {
-                            final book = _recommendedBooks[index];
-                            return _buildFeaturedBookCard(context, book);
-                          },
-                        ),
+                      child: _buildHorizontalList(
+                        books: _recommendedBooks,
+                        height: 280,
+                        itemBuilder: (context, book) {
+                          // Gunakan method yang tersedia: _buildFeaturedBookCard
+                          return _buildFeaturedBookCard(context, book);
+                        },
                       ),
                     ),
 
-                    // SEDANG TREN
+                    const SliverToBoxAdapter(child: SizedBox(height: 30)),
+
+                    // 4. SECTION: SEDANG TREN
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.only(
-                            left: 20, top: 30, bottom: 10),
-                        child: _buildSectionTitle("Sedang Tren 🔥"),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 240,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 20, right: 20),
-                          itemCount: _trendingBooks.length,
-                          itemBuilder: (context, index) {
-                            final book = _trendingBooks[index];
-                            return _buildTrendingBookCard(context, book);
-                          },
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _buildSectionTitle("Sedang Tren"),
                       ),
                     ),
 
-                    // JELAJAHI LEBIH BANYAK
                     SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                            left: 20, top: 30, bottom: 10),
-                        child: _buildSectionTitle("Jelajahi Lebih Banyak"),
+                      child: _buildHorizontalList(
+                        books: _trendingBooks,
+                        height: 230, // Sesuaikan tinggi
+                        itemBuilder: (context, book) {
+                          // Gunakan method yang tersedia: _buildTrendingBookCard
+                          return _buildTrendingBookCard(context, book);
+                        },
                       ),
                     ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+                    // 5. SECTION: GENRE HISTORY
                     SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 220,
-                        child: ListView.builder(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _buildSectionTitle("Jelajahi Sejarah"),
+                      ),
+                    ),
+
+                    SliverToBoxAdapter(
+                      child: Container(
+                        height: 200,
+                        margin: const EdgeInsets.only(top: 10),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 20, right: 20),
                           itemCount: _historyBooks.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(width: 0),
                           itemBuilder: (context, index) {
                             final book = _historyBooks[index];
                             return _buildExploreBookCard(context, book);
@@ -266,6 +236,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // WIDGET HELPER PENGGANTI InfiniteBookListModel
+  Widget _buildHorizontalList({
+    required List<Book> books,
+    required double height,
+    required Widget Function(BuildContext, Book) itemBuilder,
+  }) {
+    if (books.isEmpty) {
+      return SizedBox(
+        height: 100,
+        child: const Center(child: Text("Tidak ada data")),
+      );
+    }
+    return Container(
+      height: height,
+      margin: const EdgeInsets.only(top: 10),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: books.length,
+        itemBuilder: (context, index) {
+          return itemBuilder(context, books[index]);
+        },
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -278,6 +275,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- CARD WIDGETS ---
+
   Widget _buildFeaturedBookCard(BuildContext context, Book book) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -285,22 +284,22 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
       ),
       child: Container(
-        width: 180,
+        width: 160, // Lebar disesuaikan
         margin: const EdgeInsets.only(right: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // BOOK COVER
             Container(
-              height: 240,
-              width: 180,
+              height: 220,
+              width: 160,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.grey.withOpacity(0.2),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -323,25 +322,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // GRADIENT OVERLAY
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.1),
-                        ],
-                      ),
-                    ),
-                  ),
-
                   // RATING BADGE
                   Positioned(
-                    top: 12,
-                    left: 12,
+                    top: 10,
+                    left: 10,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -349,14 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -378,37 +355,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            const SizedBox(height: 16),
-
-            // BOOK INFO
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (book.author != null && book.author!.isNotEmpty)
-                    Text(
-                      book.author!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                ],
+            const SizedBox(height: 10),
+            // TITLE
+            Text(
+              book.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
             ),
           ],
@@ -424,22 +380,22 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
       ),
       child: Container(
-        width: 140,
+        width: 120,
         margin: const EdgeInsets.only(right: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // BOOK COVER
             Container(
-              height: 180,
-              width: 140,
+              height: 160,
+              width: 120,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -458,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // BOOK INFO
             Text(
@@ -468,23 +424,19 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.w500,
-                fontSize: 13,
-                height: 1.3,
+                fontSize: 12,
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            // RATING
+            const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.star, color: Colors.amber, size: 14),
+                const Icon(Icons.star, color: Colors.amber, size: 12),
                 const SizedBox(width: 4),
                 Text(
                   book.averageRating.toStringAsFixed(1),
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
               ],

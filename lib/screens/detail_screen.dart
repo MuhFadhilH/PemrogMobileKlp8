@@ -8,7 +8,7 @@ import '../models/review_model.dart';
 import '../models/book_list_model.dart';
 import '../services/firestore_service.dart';
 import 'book_review_screen.dart';
-import 'log_search_page.dart';
+import 'log_form_page.dart'; // Import File Baru
 
 class DetailScreen extends StatefulWidget {
   final Book book;
@@ -45,8 +45,6 @@ class _DetailScreenState extends State<DetailScreen> {
   // ===========================================================================
 
   void _showCollectionModal() {
-    if (!mounted) return;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -80,6 +78,8 @@ class _DetailScreenState extends State<DetailScreen> {
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const Divider(height: 1),
+
+                // ISI LIST
                 Expanded(
                   child: ListView(
                     controller: scrollController,
@@ -87,44 +87,72 @@ class _DetailScreenState extends State<DetailScreen> {
                         horizontal: 20, vertical: 20),
                     children: [
                       // --- ITEM 1: READING LIST (MAIN) ---
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _handleReadingListSelection();
+                      StreamBuilder<BookStatus>(
+                        stream: _firestoreService
+                            .getBookStatusStream(widget.book.id),
+                        builder: (context, snapshot) {
+                          // Cek apakah sudah tersimpan
+                          final isSaved = snapshot.hasData &&
+                              snapshot.data != BookStatus.none;
+
+                          return InkWell(
+                            onTap: () {
+                              if (isSaved) {
+                                // JIKA SUDAH ADA, HAPUS (BATALKAN)
+                                _firestoreService.saveBookToReadingList(
+                                    widget.book, BookStatus.none);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            "Dihapus dari Reading List utama")));
+                              } else {
+                                // JIKA BELUM, TAMBAHKAN
+                                Navigator.pop(context);
+                                _handleReadingListSelection();
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                      color: _primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8)),
+                                  child: Icon(Icons.bookmark_added,
+                                      color: _primaryColor),
+                                ),
+                                const SizedBox(width: 16),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Reading List (Main)",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16)),
+                                      Text("List utama & Jadwal baca",
+                                          style: TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                // Toggle Icon Visual
+                                isSaved
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : Icon(Icons.add_circle_outline,
+                                        color: Colors.grey[400]),
+                              ],
+                            ),
+                          );
                         },
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                  color: _primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Icon(Icons.bookmark_added,
-                                  color: _primaryColor),
-                            ),
-                            const SizedBox(width: 16),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Reading List (Main)",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16)),
-                                  Text("List utama & Jadwal baca",
-                                      style: TextStyle(
-                                          color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.add_circle_outline,
-                                color: Colors.grey[400]),
-                          ],
-                        ),
                       ),
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 10),
+
                       const Text("Koleksi Pribadi",
                           style: TextStyle(
                               color: Colors.grey,
@@ -138,22 +166,13 @@ class _DetailScreenState extends State<DetailScreen> {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
-                                child: Padding(
-                                    padding: EdgeInsets.all(20),
-                                    child: CircularProgressIndicator()));
+                                child: CircularProgressIndicator());
                           }
 
                           var lists = snapshot.data ?? [];
-
                           if (lists.isEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: Center(
-                                  child: Text("Belum ada list kustom.",
-                                      style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontStyle: FontStyle.italic))),
-                            );
+                            return const Center(
+                                child: Text("Belum ada list kustom."));
                           }
 
                           return ListView.separated(
@@ -165,10 +184,12 @@ class _DetailScreenState extends State<DetailScreen> {
                             itemBuilder: (context, index) {
                               final list = lists[index];
                               return InkWell(
+                                // PERBAIKAN: Menambahkan parameter context
                                 onTap: () =>
                                     _addBookToCustomList(list, context),
                                 child: Row(
                                   children: [
+                                    // Cover List
                                     Container(
                                       width: 50,
                                       height: 50,
@@ -216,6 +237,8 @@ class _DetailScreenState extends State<DetailScreen> {
                     ],
                   ),
                 ),
+
+                // --- FOOTER: TOMBOL BUAT LIST BARU ---
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
@@ -254,7 +277,8 @@ class _DetailScreenState extends State<DetailScreen> {
         _isAddingToList = true;
       });
 
-      await _firestoreService.addBookToCustomList(widget.book, list.id!);
+      await _firestoreService.addBookToCustomList(widget.book, list.id);
+
       _safeShowSnackBar("Ditambahkan ke '${list.title}'");
     } catch (e) {
       String errorMessage = e.toString().replaceAll("Exception: ", "");
@@ -264,7 +288,10 @@ class _DetailScreenState extends State<DetailScreen> {
         _isAddingToList = false;
       });
       if (mounted) {
-        Navigator.pop(context);
+        // Cek apakah dialog masih aktif sebelum pop untuk menghindari error
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
       }
     }
   }
@@ -287,10 +314,16 @@ class _DetailScreenState extends State<DetailScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text("Batal")),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (listNameController.text.isNotEmpty) {
                 Navigator.pop(context);
-                // TODO: Implement create list
+                try {
+                  await _firestoreService
+                      .createCustomList(listNameController.text);
+                  _safeShowSnackBar("List '${listNameController.text}' dibuat");
+                } catch (e) {
+                  _safeShowSnackBar("Gagal membuat list", isError: true);
+                }
               }
             },
             child: const Text("Buat"),
@@ -524,7 +557,9 @@ class _DetailScreenState extends State<DetailScreen> {
                   IconButton(
                       icon: const Icon(Icons.share_outlined),
                       onPressed: () {
-                        // TODO: Implement share
+                        // Implementasi Share sederhana (optional)
+                        _safeShowSnackBar(
+                            "Fitur Share belum diimplementasikan");
                       }),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
@@ -606,7 +641,9 @@ class _DetailScreenState extends State<DetailScreen> {
                           Expanded(
                               child: OutlinedButton(
                                   onPressed: () {
-                                    // TODO: Implement sample
+                                    // Sample Feature placeholder
+                                    _safeShowSnackBar(
+                                        "Fitur Sample belum tersedia");
                                   },
                                   style: OutlinedButton.styleFrom(
                                       side:

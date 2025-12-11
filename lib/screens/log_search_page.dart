@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book_model.dart';
 import '../services/api_service.dart';
 import '../services/firestore_service.dart';
@@ -49,7 +48,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
       setState(() {
         _isLoading = false;
       });
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Gagal mencari buku: ${e.toString()}"),
@@ -85,15 +84,17 @@ class _LogSearchPageState extends State<LogSearchPage> {
     try {
       int addedCount = 0;
       for (String bookId in _selectedBookIds) {
+        // Cari object buku berdasarkan ID yang dipilih
         final book = _searchResults.firstWhere((b) => b.id == bookId);
+
+        // Panggil method Firestore yang sudah direvisi
         await _firestoreService.addBookToCustomList(
-          book,
-          widget.targetBookListId,
-        );
+            book, widget.targetBookListId);
+
         addedCount++;
       }
 
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("$addedCount buku berhasil ditambahkan"),
@@ -101,10 +102,11 @@ class _LogSearchPageState extends State<LogSearchPage> {
           ),
         );
 
+        // Kembali ke halaman detail list
         Navigator.pop(context);
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error: ${e.toString()}"),
@@ -113,9 +115,11 @@ class _LogSearchPageState extends State<LogSearchPage> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -134,6 +138,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
       ),
       body: Column(
         children: [
+          // Kolom Pencarian
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -157,6 +162,8 @@ class _LogSearchPageState extends State<LogSearchPage> {
               onChanged: _searchBooks,
             ),
           ),
+
+          // Indikator Buku Terpilih
           if (_selectedBookIds.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -175,6 +182,8 @@ class _LogSearchPageState extends State<LogSearchPage> {
                 ],
               ),
             ),
+
+          // List Hasil Pencarian
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -205,42 +214,20 @@ class _LogSearchPageState extends State<LogSearchPage> {
                             elevation: 1,
                             margin: const EdgeInsets.only(bottom: 12),
                             child: ListTile(
-                              leading: Stack(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      book.thumbnailUrl,
-                                      width: 50,
-                                      height: 70,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        width: 50,
-                                        height: 70,
-                                        color: Colors.grey[200],
-                                        child: const Icon(Icons.book),
-                                      ),
-                                    ),
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  book.thumbnailUrl,
+                                  width: 50,
+                                  height: 70,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 50,
+                                    height: 70,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.book),
                                   ),
-                                  if (isSelected)
-                                    Positioned(
-                                      top: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: const Icon(
-                                          Icons.check,
-                                          color: Colors.white,
-                                          size: 12,
-                                        ),
-                                      ),
-                                    ),
-                                ],
+                                ),
                               ),
                               title: Text(
                                 book.title,

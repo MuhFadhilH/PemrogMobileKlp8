@@ -370,6 +370,7 @@ class FirestoreService {
   }
 
   // METHOD BARU: Hapus buku dari list
+  // NOTE: Method ini fungsinya sama dengan removeBookFromList di branch lain
   Future<void> deleteBookFromList(String listId, String bookId) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -664,5 +665,25 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map((doc) {
               return (doc['date'] as Timestamp).toDate();
             }).toList());
+  }
+
+  // ===========================================================================
+  // 9. EXTRA HELPERS (MERGED)
+  // ===========================================================================
+
+  // Cek apakah buku ada di list tertentu (Stream agar real-time)
+  Stream<bool> isBookInCustomList(String listId, String bookId) {
+    User? user = _auth.currentUser;
+    if (user == null) return Stream.value(false);
+
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('custom_book_lists')
+        .doc(listId)
+        .collection('books')
+        .doc(bookId)
+        .snapshots()
+        .map((doc) => doc.exists);
   }
 }
