@@ -167,9 +167,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverToBoxAdapter(
                       child: _buildHorizontalList(
                         books: _recommendedBooks,
-                        height: 280,
+                        height: 300, // DITAMBAH dari 280 agar tidak overflow
                         itemBuilder: (context, book) {
-                          // Gunakan method yang tersedia: _buildFeaturedBookCard
                           return _buildFeaturedBookCard(context, book);
                         },
                       ),
@@ -188,9 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverToBoxAdapter(
                       child: _buildHorizontalList(
                         books: _trendingBooks,
-                        height: 230, // Sesuaikan tinggi
+                        height: 260, // DITAMBAH dari 230 agar tidak overflow
                         itemBuilder: (context, book) {
-                          // Gunakan method yang tersedia: _buildTrendingBookCard
                           return _buildTrendingBookCard(context, book);
                         },
                       ),
@@ -208,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     SliverToBoxAdapter(
                       child: Container(
-                        height: 200,
+                        height: 240, // DITAMBAH dari 200 agar tidak overflow
                         margin: const EdgeInsets.only(top: 10),
                         child: ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -284,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => DetailScreen(book: book)),
       ),
       child: Container(
-        width: 160, // Lebar disesuaikan
+        width: 160,
         margin: const EdgeInsets.only(right: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
