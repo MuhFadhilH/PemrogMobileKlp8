@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 // Import halaman-halaman yang akan ditampilkan
-import 'screens/home_screen.dart';
+import 'screens/home/home_screen.dart'; // PERUBAHAN DI SINI
 import 'screens/log_search_page.dart';
-import 'screens/profile/profile_screen.dart'; // PERUBAHAN DI SINI
+import 'screens/profile/profile_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/journal_screen.dart';
 
@@ -18,7 +18,7 @@ class _MainNavState extends State<MainNav> {
 
   // Daftar halaman untuk Tab 0, 1, 3, 4 (Tab 2 adalah tombol Log)
   final List<Widget> _screens = [
-    const HomeScreen(), // 0: Home
+    const HomeScreen(), // 0: Home (versi baru)
     const ExploreScreen(), // 1: Explore
     const SizedBox(), // 2: Placeholder untuk tombol tengah
     const JournalScreen(), // 3: Journal
@@ -31,7 +31,6 @@ class _MainNavState extends State<MainNav> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          // Hapus 'const' jika argumen tidak konstan, dan perbaiki koma ganda
           builder: (context) => const LogSearchPage(
             targetBookListId: '', // String kosong karena pencarian umum
             targetOwnerId: '', // String kosong karena pencarian umum
