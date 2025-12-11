@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/book_model.dart';
 import '../services/api_service.dart';
 import 'detail_screen.dart';
+import 'collection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Index untuk melacak slide mana yang sedang aktif (untuk indikator titik)
   int _currentCollectionIndex = 0;
 
-  // Data Dummy untuk Koleksi
+  // Data untuk Koleksi
   final List<Map<String, String>> _collections = [
     {
       'subtitle': 'WEEKLY COLLECTION',
@@ -30,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'count': '12 Buku',
       'image':
           'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+      'keyword': 'Psychology', // <--- TAMBAHKAN INI
     },
     {
       'subtitle': 'EDITOR\'S CHOICE',
@@ -37,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'count': '8 Buku',
       'image':
           'https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+      'keyword': 'Science Fiction', // <--- TAMBAHKAN INI
     },
     {
       'subtitle': 'TRENDING NOW',
@@ -44,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'count': '5 Buku',
       'image':
           'https://images.unsplash.com/photo-1461360370896-922624d12aa1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+      'keyword': 'History Indonesia', // <--- TAMBAHKAN INI
     },
   ];
 
@@ -145,62 +149,74 @@ class _HomeScreenState extends State<HomeScreen> {
                                   },
                                   itemBuilder: (context, index) {
                                     final data = _collections[index];
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        image: DecorationImage(
-                                          image: NetworkImage(data['image']!),
-                                          fit: BoxFit.cover,
-                                          // Filter gelap agar teks terbaca jelas
-                                          colorFilter: ColorFilter.mode(
-                                              Colors.black
-                                                  .withValues(alpha: 0.5),
-                                              BlendMode.darken),
+                                    return GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                CollectionScreen(
+                                                    collectionData: data),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          image: DecorationImage(
+                                            image: NetworkImage(data['image']!),
+                                            fit: BoxFit.cover,
+                                            // Filter gelap agar teks terbaca jelas
+                                            colorFilter: ColorFilter.mode(
+                                                Colors.black
+                                                    .withValues(alpha: 0.5),
+                                                BlendMode.darken),
+                                          ),
                                         ),
-                                      ),
-                                      padding: const EdgeInsets.all(20),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            data['subtitle']!,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 10,
-                                              letterSpacing: 1.5,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            data['title']!,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.2),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: Text(
-                                              data['count']!,
+                                        padding: const EdgeInsets.all(20),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              data['subtitle']!,
                                               style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10),
+                                                color: Colors.white70,
+                                                fontSize: 10,
+                                                letterSpacing: 1.5,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                          )
-                                        ],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              data['title']!,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                height: 1.2,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                data['count']!,
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10),
+                                              ),
+                                            )
+                                          ],
+                                        ),
                                       ),
                                     );
                                   },
