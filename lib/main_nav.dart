@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 // Import halaman-halaman yang akan ditampilkan
 import 'screens/home_screen.dart';
 import 'screens/log_search_page.dart';
-import 'screens/profile_screen.dart';
+import 'screens/profile/profile_screen.dart'; // PERUBAHAN DI SINI
 import 'screens/explore_screen.dart';
 import 'screens/journal_screen.dart';
 

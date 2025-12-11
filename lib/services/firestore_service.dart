@@ -65,7 +65,21 @@ class FirestoreService {
     return UserPreference();
   }
 
-  // Method yang sudah ada sebelumnya dengan sedikit perbaikan
+  // ===========================================================================
+  // METHOD: Get User Profile (Once - Non-Stream)
+  // ===========================================================================
+  Future<DocumentSnapshot> getUserProfile() async {
+    User? user = _auth.currentUser;
+    if (user == null) {
+      throw Exception("User not logged in");
+    }
+
+    return await _db.collection('users').doc(user.uid).get();
+  }
+
+  // ===========================================================================
+  // METHOD: Get User Profile Stream (Real-time)
+  // ===========================================================================
   Stream<DocumentSnapshot> getUserProfileStream() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -84,6 +98,35 @@ class FirestoreService {
     });
 
     await user.updateDisplayName(username);
+  }
+
+  // ===========================================================================
+  // METHOD: Update User Profile with Photo
+  // ===========================================================================
+  Future<void> updateUserProfileWithPhoto({
+    required String username,
+    required String bio,
+    String? photoUrl,
+  }) async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    Map<String, dynamic> updateData = {
+      'username': username,
+      'bio': bio,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (photoUrl != null) {
+      updateData['photoUrl'] = photoUrl;
+    }
+
+    await _db.collection('users').doc(user.uid).update(updateData);
+
+    // Update display name di Firebase Auth
+    if (username != user.displayName) {
+      await user.updateDisplayName(username);
+    }
   }
 
   // Hitung total buku di Reading List
