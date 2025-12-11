@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/book_model.dart';
 import '../services/api_service.dart';
-// import '../services/firestore_service.dart'; // Simpan buat nanti
 import 'detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,7 +13,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
 
-  // Kita siapkan 3 wadah data untuk 3 section berbeda
   List<Book> _recommendedBooks = [];
   List<Book> _trendingBooks = [];
   List<Book> _historyBooks = [];
@@ -28,14 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchAllData() async {
     try {
-      // 1. "Cocok Untukmu" -> Sementara kita hardcode cari 'Psychology'
-      // Nanti ini diganti dengan variable dari Preferensi User
       final recommended = await _apiService.fetchBooks('Psychology');
-
-      // 2. "Sedang Tren" -> Kita cari 'Best Seller 2024'
       final trending = await _apiService.fetchBooks('Best Seller Fiction');
-
-      // 3. "Sejarah" (Genre Lain)
       final history = await _apiService.fetchBooks('History Indonesia');
 
       if (mounted) {
@@ -56,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // SafeArea biar gak ketutup poni HP
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -67,38 +58,46 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. HEADER (Sapaan)
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Selamat Pagi,",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
-                              ),
+                      // 1. HEADER
+                      Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                          child: AppBar(
+                            backgroundColor: Colors.white,
+                            elevation: 0,
+                            centerTitle: false,
+                            title: const Row(
+                              children: [
+                                Icon(Icons.menu_book_rounded,
+                                    color: Color(0xFF5C6BC0), size: 28),
+                                SizedBox(width: 12),
+                                Text(
+                                  "Bibliomate",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              "Fadhil Hilmy 👋", // Nanti ambil dari Auth
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                            actions:  [
+                              IconButton(
+                                icon: const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: Colors.grey),
+                                onPressed: () {},
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
+                              const SizedBox(width: 16),
+                            ],
+                          )),
 
                       const SizedBox(height: 10),
 
-                      // 2. SECTION: COCOK UNTUKMU (Carousel Besar - Infinite)
+                      // 2. SECTION: COCOK UNTUKMU
                       _buildSectionTitle("Cocok Untukmu"),
                       InfiniteBookListModel(
                         books: _recommendedBooks,
-                        height: 280, // Tinggi area
+                        height: 280,
                         itemBuilder: (context, book) {
                           return _buildBigBookCard(context, book);
                         },
@@ -106,11 +105,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       const SizedBox(height: 30),
 
-                      // 3. SECTION: SEDANG TREN (List Kecil - Infinite)
-                      _buildSectionTitle("Sedang Tren 🔥"),
+                      // 3. SECTION: SEDANG TREN
+                      _buildSectionTitle("Sedang Tren "),
                       InfiniteBookListModel(
                         books: _trendingBooks,
-                        height: 200, // Tinggi area
+                        height: 200,
                         itemBuilder: (context, book) {
                           return _buildSmallBookCard(context, book);
                         },
@@ -123,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(
                         height: 200,
                         child: ListView.separated(
+                          // Padding History (Sudah Benar)
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
@@ -143,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- WIDGET PENDUKUNG (Biar kodenya rapi) ---
+  // --- WIDGET PENDUKUNG ---
 
   Widget _buildSectionTitle(String title) {
     return Padding(
@@ -159,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Kartu Besar untuk "Cocok Untukmu"
   Widget _buildBigBookCard(BuildContext context, Book book) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -169,7 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gambar Cover dengan Shadow
           Container(
             height: 200,
             width: 140,
@@ -177,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha : 0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -194,7 +192,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // Judul & Rating
           SizedBox(
             width: 140,
             child: Text(
@@ -223,7 +220,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Kartu Kecil untuk "Trending"
   Widget _buildSmallBookCard(BuildContext context, Book book) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -268,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// --- WIDGET LIST INFINITE (BERPUTAR TERUS) ---
+// --- PERBAIKAN DI SINI ---
 class InfiniteBookListModel extends StatelessWidget {
   final List<Book> books;
   final double height;
@@ -293,21 +289,17 @@ class InfiniteBookListModel extends StatelessWidget {
     return SizedBox(
       height: height,
       child: ListView.builder(
+        // Menambahkan padding agar item pertama tidak nempel kiri layar
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        // itemCount: null, // null artinya tak terbatas (infinite)
-        // Atau kita kasih angka sangat besar agar memory aman
         itemCount: 10000,
         itemBuilder: (context, index) {
-          // LOGIKA MODULO:
-          // index % books.length akan selalu menghasilkan angka
-          // antara 0 sampai (panjang data - 1).
-          // Contoh: Data ada 5. Saat index 5, 5%5=0 (balik ke awal).
           final int realIndex = index % books.length;
           final book = books[realIndex];
 
           return Padding(
-            padding: const EdgeInsets.only(right: 16), // Jarak antar item
+            padding: const EdgeInsets.only(right: 16),
             child: itemBuilder(context, book),
           );
         },
