@@ -25,15 +25,6 @@ class _LogSearchPageState extends State<LogSearchPage> {
   List<Book> _searchResults = [];
   bool _isSearching = false;
 
-  // Dummy Recent Searches
-  final List<String> _recentSearches = [
-    "Laut Bercerita",
-    "Atomic Habits",
-    "Filosofi Teras",
-    "Pulang - Leila S. Chudori",
-    "Cantik Itu Luka",
-  ];
-
   void _searchBooks(String query) async {
     if (query.isEmpty) {
       setState(() => _searchResults = []);
@@ -127,35 +118,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-
-    if (_searchController.text.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        children: [
-          const Text(
-            "RECENT SEARCHES",
-            style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2),
-          ),
-          const SizedBox(height: 10),
-          ..._recentSearches.map((text) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  text,
-                  style: const TextStyle(color: Colors.grey, fontSize: 16),
-                ),
-                onTap: () {
-                  _searchController.text = text;
-                  _searchBooks(text);
-                },
-              )),
-        ],
-      );
-    }
-
+    
     return ListView.builder(
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
