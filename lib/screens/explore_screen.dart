@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math; // Import math untuk rotasi icon
 import '../models/book_model.dart';
-import '../models/book_list_model.dart'; // <-- PENTING: Untuk data list buku
+import '../models/book_list_model.dart';
 import '../services/api_service.dart';
 import 'book_list_detail_screen.dart';
 import 'detail_screen.dart';
-import 'genre_books_screen.dart'; // Import file baru tadi
-import '../services/firestore_service.dart'; // <-- PENTING: Untuk akses database
-import '../models/user_model.dart'; // <-- PENTING: Untuk data user
+import 'genre_books_screen.dart';
+import '../services/firestore_service.dart';
+import '../models/user_model.dart';
 import '../models/review_model.dart';
-import 'public_profile_screen.dart'; // <-- PENTING: Untuk data review
+import 'public_profile_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -23,25 +24,53 @@ class _ExploreScreenState extends State<ExploreScreen>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // PERBAIKAN: Default false, tapi tidak otomatis mati saat hilang fokus
   bool _isSearching = false;
 
   // State Tabs
   late TabController _tabController;
 
+  // DATA GENRE DENGAN WARNA VIBRANT (Solid)
   final List<Map<String, dynamic>> _genres = const [
-    {'name': 'Fiction', 'color': Color(0xFFEF5350), 'icon': Icons.auto_stories},
-    {'name': 'Science', 'color': Color(0xFF42A5F5), 'icon': Icons.science},
-    {'name': 'History', 'color': Color(0xFFFFA726), 'icon': Icons.history_edu},
-    {'name': 'Romance', 'color': Color(0xFFEC407A), 'icon': Icons.favorite},
+    {
+      'name': 'Fiction',
+      'color': Color(0xFFE91E63),
+      'icon': Icons.auto_stories
+    }, // Pink
+    {
+      'name': 'Science',
+      'color': Color(0xFF2196F3),
+      'icon': Icons.science
+    }, // Blue
+    {
+      'name': 'History',
+      'color': Color(0xFFE65100),
+      'icon': Icons.history_edu
+    }, // Orange Dark
+    {
+      'name': 'Romance',
+      'color': Color(0xFFD81B60),
+      'icon': Icons.favorite
+    }, // Dark Pink
     {
       'name': 'Horror',
-      'color': Color(0xFF7E57C2),
+      'color': Color(0xFF512DA8),
       'icon': Icons.nightlight_round
-    },
-    {'name': 'Business', 'color': Color(0xFF26A69A), 'icon': Icons.trending_up},
-    {'name': 'Biography', 'color': Color(0xFF78909C), 'icon': Icons.person},
-    {'name': 'Technology', 'color': Color(0xFF5C6BC0), 'icon': Icons.computer},
+    }, // Deep Purple
+    {
+      'name': 'Business',
+      'color': Color(0xFF00695C),
+      'icon': Icons.trending_up
+    }, // Teal Dark
+    {
+      'name': 'Biography',
+      'color': Color(0xFF455A64),
+      'icon': Icons.person
+    }, // Blue Grey
+    {
+      'name': 'Tech',
+      'color': Color(0xFF1565C0),
+      'icon': Icons.computer
+    }, // Blue Dark
   ];
 
   @override
@@ -49,9 +78,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
 
-    // PERBAIKAN LOGIKA LISTENER:
-    // Kita hanya mengaktifkan search saat fokus didapat.
-    // Tapi KITA TIDAK MEMATIKANNYA saat fokus hilang (biar bisa klik Tab).
     _searchFocusNode.addListener(() {
       if (_searchFocusNode.hasFocus) {
         setState(() {
@@ -61,11 +87,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     });
   }
 
-  // Fungsi saat tombol "X" ditekan (Satu-satunya cara keluar mode search)
   void _clearSearch() {
     _searchController.clear();
     _searchFocusNode.unfocus();
-    setState(() => _isSearching = false); // Baru di sini kita matikan manual
+    setState(() => _isSearching = false);
   }
 
   @override
@@ -75,7 +100,6 @@ class _ExploreScreenState extends State<ExploreScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // PERBAIKAN TAMPILAN: AppBar sedikit lebih tinggi biar TabBar tidak sempit
         toolbarHeight: _isSearching ? 110 : 70,
         title: _buildSearchBar(),
         bottom: _isSearching
@@ -85,7 +109,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: const Color(0xFF5C6BC0),
                 isScrollable: true,
-                // Tambahkan onTap agar keyboard turun saat pilih tab (Opsional, biar rapi)
                 onTap: (_) => _searchFocusNode.unfocus(),
                 tabs: const [
                   Tab(text: "Books"),
@@ -105,7 +128,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     return TextField(
       controller: _searchController,
       focusNode: _searchFocusNode,
-      // PERBAIKAN: Paksa aktifkan mode search saat ditekan
       onTap: () {
         setState(() => _isSearching = true);
       },
@@ -116,7 +138,6 @@ class _ExploreScreenState extends State<ExploreScreen>
         hintText: "Search titles, authors, lists...",
         hintStyle: TextStyle(color: Colors.grey[400]),
         prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-        // Tombol X hanya muncul jika mode searching aktif
         suffixIcon: _isSearching
             ? IconButton(
                 icon: const Icon(Icons.close, color: Colors.grey),
@@ -134,11 +155,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  // ... (Sisa kode _buildGenreBrowser dan _buildSearchResults SAMA SEPERTI SEBELUMNYA)
-  // Pastikan Anda menyalin sisa kode (method _buildGenreBrowser, _buildGenreCard, dll)
-  // yang sudah ada sebelumnya. Jika perlu saya kirim ulang full 1 file, beritahu saya.
-
-  // WIDGET 2: MODE NORMAL (BROWSE GENRE) - SCROLL MENYATU
+  // --- REVISI UTAMA: BROWSER GENRE GAYA SPOTIFY ---
   Widget _buildGenreBrowser() {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -148,7 +165,7 @@ class _ExploreScreenState extends State<ExploreScreen>
             padding: EdgeInsets.fromLTRB(20, 10, 20, 16),
             child: Text(
               "Browse by Genre",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ),
         ),
@@ -156,10 +173,10 @@ class _ExploreScreenState extends State<ExploreScreen>
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.6,
+              crossAxisCount: 2, // 2 Kotak per baris
+              crossAxisSpacing: 12, // Jarak antar kolom
+              mainAxisSpacing: 12, // Jarak antar baris
+              childAspectRatio: 1.65, // Rasio lebar:tinggi (Persegi Panjang)
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
@@ -175,17 +192,18 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
+  // --- CARD STYLE BARU (MIRIP GAMBAR REFERENSI) ---
   Widget _buildGenreCard(Map<String, dynamic> genre) {
     return Container(
       decoration: BoxDecoration(
-        color: genre['color'].withValues(alpha : 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: genre['color'].withValues(alpha : 0.3)),
+        color: genre['color'], // Warna Solid Vibrant
+        borderRadius:
+            BorderRadius.circular(8), // Sudut melengkung sedikit (4-8px)
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           onTap: () {
             Navigator.push(
               context,
@@ -197,17 +215,49 @@ class _ExploreScreenState extends State<ExploreScreen>
               ),
             );
           },
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Stack(
+            clipBehavior: Clip.hardEdge, // Memotong icon yang keluar batas
             children: [
-              Icon(genre['icon'], size: 32, color: genre['color']),
-              const SizedBox(height: 8),
-              Text(
-                genre['name'],
-                style: TextStyle(
-                  color: genre['color'],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+              // 1. TEKS JUDUL (Kiri Atas)
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Text(
+                  genre['name'],
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18, // Font Besar
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+
+              // 2. ICON BESAR (Kanan Bawah & Miring)
+              Positioned(
+                bottom: -10,
+                right: -15,
+                child: Transform.rotate(
+                  angle: 25 * (math.pi / 180), // Rotasi 25 derajat
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                        color:
+                            Colors.white.withOpacity(0.2), // Kotak transparan
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(4, 4),
+                          )
+                        ]),
+                    child: Icon(
+                      genre['icon'],
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -224,21 +274,19 @@ class _ExploreScreenState extends State<ExploreScreen>
       controller: _tabController,
       children: [
         _SearchResultList(query: query, type: "books"),
-        _SearchResultList(query: query, type: "people"), // <-- Tambah Ini
+        _SearchResultList(query: query, type: "people"),
         _SearchResultList(query: query, type: "reviews"),
         _SearchResultList(query: query, type: "authors"),
         _SearchResultList(query: query, type: "lists"),
-        // Center(child: Text("Search Lists (Coming Soon)")),
       ],
     );
   }
 }
 
-// Helper Widget untuk Menampilkan Hasil Search (Biar kode rapi)
-// Helper Widget untuk Menampilkan Hasil Search
+// --- HELPER CLASS SEARCH (TIDAK BERUBAH) ---
 class _SearchResultList extends StatefulWidget {
   final String query;
-  final String type; // "books", "authors", dll
+  final String type;
 
   const _SearchResultList({required this.query, required this.type});
 
@@ -246,15 +294,12 @@ class _SearchResultList extends StatefulWidget {
   State<_SearchResultList> createState() => _SearchResultListState();
 }
 
-// Tambahkan 'AutomaticKeepAliveClientMixin' agar Tab tidak hancur saat digeser
 class _SearchResultListState extends State<_SearchResultList>
     with AutomaticKeepAliveClientMixin {
   final ApiService _apiService = ApiService();
-  final FirestoreService _firestoreService =
-      FirestoreService(); // Panggil Firestore
+  final FirestoreService _firestoreService = FirestoreService();
 
-  List<dynamic> _results =
-      []; // Dynamic karena isinya bisa Book, User, atau Review
+  List<dynamic> _results = [];
   bool _isLoading = false;
   bool _hasSearched = false;
 
@@ -282,28 +327,20 @@ class _SearchResultListState extends State<_SearchResultList>
 
     try {
       List<dynamic> res = [];
-
-      // LOGIKA SWITCH SESUAI TAB
       switch (widget.type) {
         case 'books':
           res = await _apiService.fetchBooks(widget.query);
           break;
-
         case 'authors':
-          // Google Books support pencarian khusus penulis "inauthor:nama"
           res = await _apiService.fetchBooks('inauthor:${widget.query}');
           break;
-
         case 'people':
           res = await _firestoreService.searchUsers(widget.query);
           break;
-
         case 'reviews':
           res = await _firestoreService.searchReviews(widget.query);
           break;
-
-        case 'lists': // <-- Tambahkan Case ini
-          // Pastikan Anda sudah uncomment Tab 'Lists' di AppBar
+        case 'lists':
           res = await _firestoreService.searchBookListModels(widget.query);
           break;
       }
@@ -343,20 +380,13 @@ class _SearchResultListState extends State<_SearchResultList>
       itemBuilder: (context, index) {
         final item = _results[index];
 
-        // TAMPILAN 1: BUKU & AUTHOR (Strukturnya sama: Book Model)
         if (widget.type == 'books' || widget.type == 'authors') {
           return _buildBookTile(item);
-        }
-        // TAMPILAN 2: PEOPLE (User Model)
-        else if (widget.type == 'people') {
+        } else if (widget.type == 'people') {
           return _buildUserTile(item);
-        }
-        // TAMPILAN 3: REVIEWS (Review Model)
-        else if (widget.type == 'reviews') {
+        } else if (widget.type == 'reviews') {
           return _buildReviewTile(item);
-        }
-        // TAMPILAN 4: LISTS / SHELVES
-        else if (widget.type == 'lists') {
+        } else if (widget.type == 'lists') {
           return _buildBookListModelTile(item);
         }
 
@@ -364,8 +394,6 @@ class _SearchResultListState extends State<_SearchResultList>
       },
     );
   }
-
-  // --- WIDGET TILE KHUSUS ---
 
   Widget _buildBookTile(Book book) {
     return ListTile(
@@ -396,7 +424,6 @@ class _SearchResultListState extends State<_SearchResultList>
   Widget _buildUserTile(UserModel user) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      // Foto Profil
       leading: CircleAvatar(
         radius: 28,
         backgroundColor: Colors.grey[200],
@@ -406,10 +433,8 @@ class _SearchResultListState extends State<_SearchResultList>
             ? const Icon(Icons.person, color: Colors.grey)
             : null,
       ),
-      // Nama (Sekarang pasti muncul Ricardo)
       title: Text(user.displayName,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      // Navigasi saat ditekan (Tanpa tombol View)
       onTap: () {
         Navigator.push(
           context,
@@ -421,22 +446,19 @@ class _SearchResultListState extends State<_SearchResultList>
     );
   }
 
-Widget _buildReviewTile(Review review) {
+  Widget _buildReviewTile(Review review) {
     return GestureDetector(
       onTap: () {
-        // 1. Buat objek Book dari data Review
-        // Kita gunakan data yang ada saja, sisanya default/kosong
         final bookFromReview = Book(
           id: review.bookId,
           title: review.bookTitle,
           author: review.bookAuthor,
           thumbnailUrl: review.bookThumbnailUrl,
-          description: "Deskripsi tidak tersedia dari review.", // Placeholder
-          averageRating: 0, // Placeholder
+          description: "Deskripsi tidak tersedia dari review.",
+          averageRating: 0,
           infoLink: '',
         );
 
-        // 2. Navigasi ke DetailScreen
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -450,18 +472,10 @@ Widget _buildReviewTile(Review review) {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Foto Profil & Nama User
             Row(
               children: [
                 const CircleAvatar(
@@ -471,7 +485,7 @@ Widget _buildReviewTile(Review review) {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  review.username, // Nama User
+                  review.username,
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 12),
                 ),
@@ -485,12 +499,9 @@ Widget _buildReviewTile(Review review) {
               ],
             ),
             const Divider(height: 16),
-
-            // Body: Cover Buku & Isi Review
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Cover Buku
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.network(
@@ -503,8 +514,6 @@ Widget _buildReviewTile(Review review) {
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Teks Review
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,10 +543,9 @@ Widget _buildReviewTile(Review review) {
     );
   }
 
- Widget _buildBookListModelTile(BookListModel list) {
+  Widget _buildBookListModelTile(BookListModel list) {
     return GestureDetector(
       onTap: () {
-        // NAVIGASI KE DETAIL LIST
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -546,92 +554,37 @@ Widget _buildReviewTile(Review review) {
         );
       },
       child: Container(
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            // Preview Tumpukan (Stack Effect)
-            SizedBox(
-              width: 80,
-              height: 100,
-              child: Stack(
-                children: [
-                  if (list.previewImages.length > 1)
-                    Positioned(
-                      top: 0,
-                      left: 10,
-                      child: Container(
-                        width: 60,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                  if (list.previewImages.isNotEmpty)
-                    Positioned(
-                      top: 10,
-                      left: 0,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.network(
-                          list.previewImages[0],
-                          width: 70,
-                          height: 90,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Container(color: Colors.grey[400]),
-                        ),
-                      ),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: list.coverUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(list.coverUrl!, fit: BoxFit.cover),
                     )
-                  else
-                    Container(
-                      width: 70,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.collections_bookmark,
-                          size: 40, color: Colors.grey),
-                    ),
-                ],
-              ),
+                  : const Icon(Icons.folder, color: Colors.grey),
             ),
-            const SizedBox(height: 12),
-
-            // Info List
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                children: [
-                  Text(
-                    list.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "${list.bookCount} books",
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
-              ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(list.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text("${list.bookCount} books",
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              ],
             ),
           ],
         ),
