@@ -563,4 +563,52 @@ class FirestoreService {
       return null;
     }
   }
+  // Cek apakah buku ada di list tertentu (Stream agar real-time)
+  Stream<bool> isBookInCustomList(String listId, String bookId) {
+    User? user = _auth.currentUser;
+    if (user == null) return Stream.value(false);
+
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('custom_book_lists')
+        .doc(listId)
+        .collection('books')
+        .doc(bookId)
+        .snapshots()
+        .map((doc) => doc.exists);
+  }
+
+  // Hapus buku dari custom list & update jumlah buku
+  Future<void> removeBookFromList({
+    required String listId,
+    required String bookId,
+  }) async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    final listRef = _db
+        .collection('users')
+        .doc(user.uid) // Pastikan akses ke data user sendiri
+        .collection('custom_book_lists')
+        .doc(listId);
+
+    final bookRef = listRef.collection('books').doc(bookId);
+
+    await _db.runTransaction((transaction) async {
+      DocumentSnapshot listSnap = await transaction.get(listRef);
+      if (!listSnap.exists) return;
+
+      Map<String, dynamic> listData = listSnap.data() as Map<String, dynamic>;
+      int currentCount = listData['bookCount'] ?? 0;
+
+      // 1. Hapus Buku
+      transaction.delete(bookRef);
+
+      // 2. Kurangi Counter (Pastikan tidak minus)
+      transaction.update(listRef, {
+        'bookCount': (currentCount > 0) ? currentCount - 1 : 0,
+      });
+    });
+  }
 }

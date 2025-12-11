@@ -27,7 +27,7 @@ class _DetailScreenState extends State<DetailScreen> {
   // LOGIC 1: MODAL LIST (READING LIST MAIN + CUSTOM LISTS)
   // ===========================================================================
 
-  void _showCollectionModal() {
+void _showCollectionModal() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -64,7 +64,6 @@ class _DetailScreenState extends State<DetailScreen> {
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const Divider(height: 1),
-
                 // ISI LIST
                 Expanded(
                   child: ListView(
@@ -73,52 +72,74 @@ class _DetailScreenState extends State<DetailScreen> {
                         horizontal: 20, vertical: 20),
                     children: [
                       // --- ITEM 1: READING LIST (MAIN) ---
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _handleReadingListSelection();
+                      StreamBuilder<BookStatus>(
+                        stream: _firestoreService
+                            .getBookStatusStream(widget.book.id),
+                        builder: (context, snapshot) {
+                          // Cek apakah sudah tersimpan
+                          final isSaved = snapshot.hasData &&
+                              snapshot.data != BookStatus.none;
+
+                          return InkWell(
+                            onTap: () {
+                              if (isSaved) {
+                                // LOGIKA BARU: JIKA SUDAH ADA, HAPUS (BATALKAN)
+                                _firestoreService.saveBookToReadingList(
+                                    widget.book, BookStatus.none);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            "Dihapus dari Reading List utama")));
+                              } else {
+                                // JIKA BELUM, TAMBAHKAN
+                                Navigator.pop(context);
+                                _handleReadingListSelection();
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                      color: _primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8)),
+                                  child: Icon(Icons.bookmark_added,
+                                      color: _primaryColor),
+                                ),
+                                const SizedBox(width: 16),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Reading List (Main)",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16)),
+                                      Text("List utama & Jadwal baca",
+                                          style: TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                // Toggle Icon Visual
+                                isSaved
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : Icon(Icons.add_circle_outline,
+                                        color: Colors.grey[400]),
+                              ],
+                            ),
+                          );
                         },
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                  color: _primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: Icon(Icons.bookmark_added,
-                                  color: _primaryColor),
-                            ),
-                            const SizedBox(width: 16),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Reading List (Main)",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16)),
-                                  Text("List utama & Jadwal baca",
-                                      style: TextStyle(
-                                          color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.add_circle_outline,
-                                color: Colors.grey[400]),
-                          ],
-                        ),
                       ),
 
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 10),
 
-                      const Text("Koleksi Pribadi",
-                          style: TextStyle(
-                              color: Colors.grey,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12)),
-                      const SizedBox(height: 10),
+                      // ... (Header Koleksi Pribadi tetap sama) ...
 
                       // --- ITEM 2 DST: CUSTOM LISTS DARI DATABASE ---
                       StreamBuilder<List<BookListModel>>(
@@ -127,22 +148,13 @@ class _DetailScreenState extends State<DetailScreen> {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
-                                child: Padding(
-                                    padding: EdgeInsets.all(20),
-                                    child: CircularProgressIndicator()));
+                                child: CircularProgressIndicator());
                           }
 
                           var lists = snapshot.data ?? [];
-
                           if (lists.isEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: Center(
-                                  child: Text("Belum ada list kustom.",
-                                      style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontStyle: FontStyle.italic))),
-                            );
+                            return const Center(
+                                child: Text("Belum ada list kustom."));
                           }
 
                           return ListView.separated(
@@ -153,50 +165,88 @@ class _DetailScreenState extends State<DetailScreen> {
                                 const SizedBox(height: 16),
                             itemBuilder: (context, index) {
                               final list = lists[index];
-                              return InkWell(
-                                onTap: () => _addBookToCustomList(list),
-                                child: Row(
-                                  children: [
-                                    // Cover List
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                          color: Colors.grey[200],
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          image: (list.previewImages.isNotEmpty)
-                                              ? DecorationImage(
-                                                  image: NetworkImage(
-                                                      list.previewImages[0]),
-                                                  fit: BoxFit.cover)
-                                              : null),
-                                      child: list.previewImages.isEmpty
-                                          ? const Icon(Icons.folder_special,
-                                              color: Colors.amber)
-                                          : null,
+
+                              // CEK STATUS BUKU DI LIST INI
+                              return StreamBuilder<bool>(
+                                stream: _firestoreService.isBookInCustomList(
+                                    list.id, widget.book.id),
+                                builder: (context, statusSnapshot) {
+                                  final isAlreadyInList =
+                                      statusSnapshot.data ?? false;
+
+                                  return InkWell(
+                                    onTap: () async {
+                                      if (isAlreadyInList) {
+                                        // LOGIKA BARU: HAPUS DARI CUSTOM LIST
+                                        await _firestoreService
+                                            .removeBookFromList(
+                                                listId: list.id,
+                                                bookId: widget.book.id);
+
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                            content: Text(
+                                                "Dihapus dari ${list.title}"),
+                                            duration:
+                                                const Duration(seconds: 1),
+                                          ));
+                                        }
+                                      } else {
+                                        // JIKA BELUM, TAMBAHKAN
+                                        _addBookToCustomList(list);
+                                      }
+                                    },
+                                    child: Row(
+                                      children: [
+                                        // Cover List (Visual tetap sama)
+                                        Container(
+                                          width: 50,
+                                          height: 50,
+                                          decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              image: (list
+                                                      .previewImages.isNotEmpty)
+                                                  ? DecorationImage(
+                                                      image: NetworkImage(list
+                                                          .previewImages[0]),
+                                                      fit: BoxFit.cover)
+                                                  : null),
+                                          child: list.previewImages.isEmpty
+                                              ? const Icon(Icons.folder_special,
+                                                  color: Colors.amber)
+                                              : null,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(list.title,
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
+                                              Text("${list.bookCount} buku",
+                                                  style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                      fontSize: 12)),
+                                            ],
+                                          ),
+                                        ),
+                                        // Toggle Icon Visual
+                                        isAlreadyInList
+                                            ? const Icon(Icons.check_circle,
+                                                color: Colors.green)
+                                            : Icon(Icons.add_circle_outline,
+                                                color: Colors.grey[400]),
+                                      ],
                                     ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(list.title,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16)),
-                                          Text("${list.bookCount} buku",
-                                              style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 12)),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(Icons.add_circle_outline,
-                                        color: Colors.grey[400]),
-                                  ],
-                                ),
+                                  );
+                                },
                               );
                             },
                           );
@@ -205,6 +255,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     ],
                   ),
                 ),
+// ... (Sisa kode footer tetap sama) ...
 
                 // --- FOOTER: TOMBOL BUAT LIST BARU ---
                 Padding(
