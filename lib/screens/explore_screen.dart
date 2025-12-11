@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/book_model.dart';
 import '../models/book_list_model.dart'; // <-- PENTING: Untuk data list buku
 import '../services/api_service.dart';
+import 'book_list_detail_screen.dart';
 import 'detail_screen.dart';
 import 'genre_books_screen.dart'; // Import file baru tadi
 import '../services/firestore_service.dart'; // <-- PENTING: Untuk akses database
@@ -420,174 +421,220 @@ class _SearchResultListState extends State<_SearchResultList>
     );
   }
 
-  Widget _buildReviewTile(Review review) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey
-                .withValues(alpha: 0.05), // Perbaikan sintaks opacity modern
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: Foto Profil & Nama User (Penulis Review)
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 12,
-                backgroundColor: Colors.grey,
-                child: Icon(Icons.person, size: 14, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              // Karena kita belum simpan displayName di Review, kita pakai 'User' dulu
-              // Saran: Nanti update review_model untuk simpan 'userDisplayName' juga
-              const Text(
-                "Bibliomate User",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              const Spacer(),
-              Icon(Icons.star, size: 14, color: Colors.amber[700]),
-              Text(
-                " ${review.rating}",
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-            ],
-          ),
-          const Divider(height: 16),
+Widget _buildReviewTile(Review review) {
+    return GestureDetector(
+      onTap: () {
+        // 1. Buat objek Book dari data Review
+        // Kita gunakan data yang ada saja, sisanya default/kosong
+        final bookFromReview = Book(
+          id: review.bookId,
+          title: review.bookTitle,
+          author: review.bookAuthor,
+          thumbnailUrl: review.bookThumbnailUrl,
+          description: "Deskripsi tidak tersedia dari review.", // Placeholder
+          averageRating: 0, // Placeholder
+          infoLink: '',
+        );
 
-          // Body: Cover Buku & Isi Review
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Cover Buku Kecil
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  review.bookThumbnailUrl,
-                  width: 40,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(color: Colors.grey[200]),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Teks Review
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      review.bookTitle,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      review.reviewText,
-                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        // 2. Navigasi ke DetailScreen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetailScreen(book: bookFromReview),
           ),
-        ],
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Foto Profil & Nama User
+            Row(
+              children: [
+                const CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.grey,
+                  child: Icon(Icons.person, size: 14, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  review.username, // Nama User
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const Spacer(),
+                Icon(Icons.star, size: 14, color: Colors.amber[700]),
+                Text(
+                  " ${review.rating}",
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
+            ),
+            const Divider(height: 16),
+
+            // Body: Cover Buku & Isi Review
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Cover Buku
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    review.bookThumbnailUrl,
+                    width: 40,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(color: Colors.grey[200]),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Teks Review
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        review.bookTitle,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        review.reviewText,
+                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBookListModelTile(BookListModel shelf) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          // Preview Tumpukan Buku (Stack Effect)
-          SizedBox(
-            width: 60,
-            height: 80,
-            child: Stack(
-              children: [
-                if (shelf.previewImages.length > 1)
-                  Positioned(
-                    top: 0,
-                    left: 10,
-                    child: Container(
-                        width: 45, height: 70, color: Colors.grey[300]),
-                  ),
-                if (shelf.previewImages.isNotEmpty)
-                  Positioned(
-                    top: 10,
-                    left: 0,
-                    child: Image.network(
-                      shelf.previewImages[0],
-                      width: 50,
-                      height: 70,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Container(color: Colors.grey[400]),
+ Widget _buildBookListModelTile(BookListModel list) {
+    return GestureDetector(
+      onTap: () {
+        // NAVIGASI KE DETAIL LIST
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BookListDetailScreen(bookList: list),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Preview Tumpukan (Stack Effect)
+            SizedBox(
+              width: 80,
+              height: 100,
+              child: Stack(
+                children: [
+                  if (list.previewImages.length > 1)
+                    Positioned(
+                      top: 0,
+                      left: 10,
+                      child: Container(
+                        width: 60,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
                     ),
-                  )
-                else
-                  Container(
-                      color: Colors.grey[300], child: const Icon(Icons.layers)),
-              ],
+                  if (list.previewImages.isNotEmpty)
+                    Positioned(
+                      top: 10,
+                      left: 0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.network(
+                          list.previewImages[0],
+                          width: 70,
+                          height: 90,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              Container(color: Colors.grey[400]),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 70,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.collections_bookmark,
+                          size: 40, color: Colors.grey),
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
+            const SizedBox(height: 12),
 
-          // Info List
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  shelf.title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                Text(
-                  "by ${shelf.ownerName}",
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    "${shelf.bookCount} books",
+            // Info List
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                children: [
+                  Text(
+                    list.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.bold),
+                        fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    "${list.bookCount} books",
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -4,15 +4,14 @@ import '../services/api_service.dart';
 import '../services/firestore_service.dart';
 
 class LogSearchPage extends StatefulWidget {
+  // Parameter Opsional (Untuk mode "Tambah Buku ke List")
   final String? targetBookListId;
-  final String? targetOwnerId; // <--- 1. TAMBAHAN: Parameter Baru
-  final bool isGeneralSearch;
+  final String? targetOwnerId;
 
   const LogSearchPage({
     super.key,
     this.targetBookListId,
-    this.targetOwnerId, // <--- 2. TAMBAHAN: Masukkan ke Constructor
-    this.isGeneralSearch = false,
+    this.targetOwnerId,
   });
 
   @override
@@ -22,8 +21,6 @@ class LogSearchPage extends StatefulWidget {
 class _LogSearchPageState extends State<LogSearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final ApiService _apiService = ApiService();
-  final FirestoreService _firestoreService =
-      FirestoreService(); // Instance Service
 
   List<Book> _searchResults = [];
   bool _isSearching = false;
@@ -42,6 +39,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
       setState(() => _searchResults = []);
       return;
     }
+
     setState(() => _isSearching = true);
     try {
       final results = await _apiService.fetchBooks(query);
@@ -53,55 +51,38 @@ class _LogSearchPageState extends State<LogSearchPage> {
     }
   }
 
-  // --- LOGIC BARU: MENENTUKAN AKSI SAAT BUKU DIKLIK ---
-  void _onBookTap(Book book) {
-    if (widget.targetBookListId != null) {
-      // KASUS A: Mode Tambah ke List (Dari BookListDetailScreen)
-      _addBookToTargetList(book);
-    } else {
-      // KASUS B: Mode Normal (Log Review)
-      _goToReviewForm(book);
+  void _onBookTap(Book book) async {
+    // MODE 1: Tambah ke List (Jika ID List dikirim)
+    if (widget.targetBookListId != null && widget.targetOwnerId != null) {
+      _addBookToListAndExit(book);
+    }
+    // MODE 2: Tulis/Edit Review (Default)
+    else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
+      );
     }
   }
 
-  // Fungsi Simpan Buku ke Custom List
-  Future<void> _addBookToTargetList(Book book) async {
+  Future<void> _addBookToListAndExit(Book book) async {
     try {
-      // Tampilkan loading indikator sederhana
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Menyimpan buku...")),
+        const SnackBar(content: Text("Menambahkan buku...")),
       );
 
-      // Panggil Service
-      await _firestoreService.addBookToBookListModel(
-          widget.targetBookListId!, book);
+      await FirestoreService().addBookToList(
+          listId: widget.targetBookListId!,
+          ownerId: widget.targetOwnerId!,
+          book: book);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Berhasil ditambahkan ke List!"),
-              backgroundColor: Color(0xFF5C6BC0)),
-        );
-        Navigator.pop(context); // Tutup halaman pencarian
-      }
+      if (!mounted) return;
+      Navigator.pop(context); // Kembali ke halaman detail list
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        // Bersihkan pesan error agar lebih rapi
-        String err = e.toString().replaceAll("Exception: ", "");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err), backgroundColor: Colors.red),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal: $e")),
+      );
     }
-  }
-
-  void _goToReviewForm(Book book) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => LogFormPage(book: book)),
-    );
   }
 
   @override
@@ -112,19 +93,31 @@ class _LogSearchPageState extends State<LogSearchPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black),
-            onPressed: () => Navigator.pop(context)),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        titleSpacing: 0,
         title: TextField(
           controller: _searchController,
           autofocus: true,
           onChanged: _searchBooks,
           decoration: const InputDecoration(
-            hintText: "Cari buku...",
+            hintText: "Search books...",
             hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
             border: InputBorder.none,
           ),
           style: const TextStyle(fontSize: 18, color: Colors.black),
         ),
+        actions: [
+          if (_searchController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.grey),
+              onPressed: () {
+                _searchController.clear();
+                _searchBooks("");
+              },
+            ),
+        ],
       ),
       body: _buildBody(),
     );
@@ -140,7 +133,7 @@ class _LogSearchPageState extends State<LogSearchPage> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         children: [
           const Text(
-            "PENCARIAN TERAKHIR",
+            "RECENT SEARCHES",
             style: TextStyle(
                 color: Colors.grey,
                 fontSize: 12,
@@ -150,8 +143,10 @@ class _LogSearchPageState extends State<LogSearchPage> {
           const SizedBox(height: 10),
           ..._recentSearches.map((text) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(text,
-                    style: const TextStyle(color: Colors.grey, fontSize: 16)),
+                title: Text(
+                  text,
+                  style: const TextStyle(color: Colors.grey, fontSize: 16),
+                ),
                 onTap: () {
                   _searchController.text = text;
                   _searchBooks(text);
@@ -174,7 +169,6 @@ class _LogSearchPageState extends State<LogSearchPage> {
           ),
           title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(book.author, maxLines: 1),
-          // PERBAIKAN: Panggil _onBookTap, bukan langsung ke form review
           onTap: () => _onBookTap(book),
         );
       },
@@ -182,7 +176,9 @@ class _LogSearchPageState extends State<LogSearchPage> {
   }
 }
 
-// ... (Class LogFormPage di bawahnya tetap sama, tidak perlu diubah)
+// =============================================================================
+// HALAMAN FORM REVIEW (LOG)
+// =============================================================================
 class LogFormPage extends StatefulWidget {
   final Book book;
   const LogFormPage({super.key, required this.book});
@@ -192,9 +188,33 @@ class LogFormPage extends StatefulWidget {
 }
 
 class _LogFormPageState extends State<LogFormPage> {
-  bool _isSubmitting = false;
   double _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
+  bool _isSubmitting = false;
+  bool _isLoadingData = true; // Untuk loading saat cek review lama
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingReview();
+  }
+
+  // LOGIKA PENTING: Cek apakah user sudah pernah review buku ini?
+  void _checkExistingReview() async {
+    final existingReview =
+        await FirestoreService().getUserReviewForBook(widget.book.id);
+
+    if (existingReview != null && mounted) {
+      setState(() {
+        _rating = existingReview.rating;
+        _reviewController.text = existingReview.reviewText;
+      });
+    }
+
+    if (mounted) {
+      setState(() => _isLoadingData = false);
+    }
+  }
 
   void _saveReview() async {
     if (_rating == 0) {
@@ -203,22 +223,34 @@ class _LogFormPageState extends State<LogFormPage> {
       );
       return;
     }
+
     setState(() => _isSubmitting = true);
+
     try {
+      // Fungsi addReview di Service sudah kita update untuk pake .set() (Upsert)
+      // Jadi kalau sudah ada review, otomatis ter-update (Edit), bukan nambah baru.
       await FirestoreService().addReview(
         book: widget.book,
         rating: _rating,
         reviewText: _reviewController.text,
       );
+
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Review berhasil disimpan!"),
+          content: Text("Jurnal berhasil disimpan!"),
           backgroundColor: Color(0xFF5C6BC0),
         ),
       );
+
+      // Tutup halaman Form & Search (Balik ke tempat asal)
       Navigator.pop(context); // Tutup Form
-      Navigator.pop(context); // Tutup Search Page (Balik ke Home)
+      // Cek apakah halaman sebelumnya adalah Search Page, kalau iya tutup juga
+      if (Navigator.canPop(context)) {
+        // Opsional: Kalau mau langsung balik ke Home, uncomment bawah ini
+        // Navigator.pop(context);
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal menyimpan: $e")),
@@ -230,6 +262,13 @@ class _LogFormPageState extends State<LogFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingData) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -296,6 +335,24 @@ class _LogFormPageState extends State<LogFormPage> {
                       ),
                       Text(widget.book.author,
                           style: const TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.calendar_today,
+                                size: 14, color: Colors.grey),
+                            SizedBox(width: 8),
+                            Text("Read on Today",
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/review_model.dart';
-import '../models/book_list_model.dart';
+import '../models/book_list_model.dart'; // Pastikan pakai BookListModel
 import '../services/firestore_service.dart';
+import 'book_list_detail_screen.dart'; // Navigasi ke detail list
 
 class PublicProfileScreen extends StatelessWidget {
   final UserModel user;
@@ -12,7 +13,7 @@ class PublicProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2, // 2 Tab: Reviews & Lists
+      length: 2, // Review & Lists
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -27,6 +28,8 @@ class PublicProfileScreen extends StatelessWidget {
             style: const TextStyle(
                 color: Colors.black, fontWeight: FontWeight.bold),
           ),
+          centerTitle: true,
+          // Area Actions kosong (Tidak ada tombol Edit/Logout)
         ),
         body: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -36,16 +39,16 @@ class PublicProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // 1. Foto Profil
+                      // 1. Foto Profil Besar
                       CircleAvatar(
-                        radius: 45,
+                        radius: 50,
                         backgroundColor: Colors.grey[200],
                         backgroundImage: user.photoUrl.isNotEmpty
                             ? NetworkImage(user.photoUrl)
                             : null,
                         child: user.photoUrl.isEmpty
                             ? const Icon(Icons.person,
-                                size: 45, color: Colors.grey)
+                                size: 50, color: Colors.grey)
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -56,20 +59,41 @@ class PublicProfileScreen extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 22, fontWeight: FontWeight.bold),
                       ),
-                      if (user.bio.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          user.bio,
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          user.bio.isNotEmpty ? user.bio : " - ",
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey[600]),
                         ),
-                      ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // 3. Stats Row (Statistik Sederhana)
+                      // Kita pakai StreamBuilder untuk menghitung jumlah Review & List real-time
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _AsyncStatItem(
+                            label: "Reviews",
+                            stream: FirestoreService()
+                                .getUserReviews(userId: user.id),
+                          ),
+                          _AsyncStatItem(
+                            label: "Lists",
+                            stream:
+                                FirestoreService().getUserBookLists(user.id),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // 3. Tab Bar
+              // 4. Tab Bar (Sticky)
               SliverPersistentHeader(
                 delegate: _SliverAppBarDelegate(
                   const TabBar(
@@ -86,6 +110,7 @@ class PublicProfileScreen extends StatelessWidget {
               ),
             ];
           },
+          // Isi Konten Tab
           body: TabBarView(
             children: [
               _UserReviewsTab(userId: user.id),
@@ -98,6 +123,36 @@ class PublicProfileScreen extends StatelessWidget {
   }
 }
 
+// --- WIDGET STATISTIK (Menghitung jumlah data) ---
+class _AsyncStatItem extends StatelessWidget {
+  final String label;
+  final Stream<List<dynamic>> stream;
+
+  const _AsyncStatItem({required this.label, required this.stream});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<dynamic>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        return Column(
+          children: [
+            Text(
+              count.toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 // --- TAB 1: REVIEW ORANG LAIN ---
 class _UserReviewsTab extends StatelessWidget {
   final String userId;
@@ -105,7 +160,6 @@ class _UserReviewsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Panggil getUserReviews dengan parameter userId
     return StreamBuilder<List<Review>>(
       stream: FirestoreService().getUserReviews(userId: userId),
       builder: (context, snapshot) {
@@ -116,7 +170,9 @@ class _UserReviewsTab extends StatelessWidget {
 
         if (reviews.isEmpty) {
           return const Center(
-              child: Text("Pengguna ini belum menulis review."));
+            child:
+                Text("Belum ada review.", style: TextStyle(color: Colors.grey)),
+          );
         }
 
         return ListView.builder(
@@ -126,39 +182,68 @@ class _UserReviewsTab extends StatelessWidget {
             final review = reviews[index];
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
+              elevation: 0, // Flat design agar lebih bersih
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(12),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.network(
-                    review.bookThumbnailUrl,
-                    width: 40,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        Container(color: Colors.grey[200]),
-                  ),
-                ),
-                title: Text(review.bookTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Column(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.star, size: 14, color: Colors.amber[700]),
-                        Text(" ${review.rating}",
-                            style: const TextStyle(fontSize: 12)),
-                      ],
+                    // Cover Buku
+                    GestureDetector(
+                      onTap: () {
+                        // Navigasi ke detail buku saat cover ditekan (Opsional)
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          review.bookThumbnailUrl,
+                          width: 50,
+                          height: 75,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              Container(width: 50, color: Colors.grey[200]),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(review.reviewText,
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(width: 12),
+
+                    // Info Review
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            review.bookTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Row(
+                            children: [
+                              Icon(Icons.star,
+                                  size: 14, color: Colors.amber[700]),
+                              Text(" ${review.rating}",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            review.reviewText,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                TextStyle(color: Colors.grey[700], height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -170,72 +255,142 @@ class _UserReviewsTab extends StatelessWidget {
   }
 }
 
-// --- TAB 2: LIST ORANG LAIN ---
+// --- TAB 2: LIST ORANG LAIN (Updated Design) ---
+// --- TAB 2: LIST ORANG LAIN (GRID VIEW) ---
 class _UserListsTab extends StatelessWidget {
   final String userId;
   const _UserListsTab({required this.userId});
 
   @override
   Widget build(BuildContext context) {
-    // PERBAIKAN 1: Gunakan BookListModel (bukan BookListModelModel)
-    // PERBAIKAN 2: Panggil getUserBookLists (sesuai yang baru kita buat di service)
     return StreamBuilder<List<BookListModel>>(
       stream: FirestoreService().getUserBookLists(userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final shelves = snapshot.data ?? [];
+        final lists = snapshot.data ?? [];
 
-        if (shelves.isEmpty) {
-          return const Center(child: Text("Pengguna ini belum membuat list."));
+        if (lists.isEmpty) {
+          return const Center(
+            child:
+                Text("Belum ada list.", style: TextStyle(color: Colors.grey)),
+          );
         }
 
-        return ListView.separated(
+        // PERUBAHAN: Menggunakan GridView.builder
+        return GridView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: shelves.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, // 2 Kolom ke samping
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio:
+                0.75, // Mengatur tinggi kartu (makin kecil makin tinggi)
+          ),
+          itemCount: lists.length,
           itemBuilder: (context, index) {
-            final shelf = shelves[index];
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  // Icon List / Preview
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
+            final list = lists[index];
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BookListDetailScreen(bookList: list),
+                  ),
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.05),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
                     ),
-                    // PERBAIKAN 3: Gunakan getter .coverUrl atau logika list kosong
-                    child: (shelf.previewImages.isNotEmpty)
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(shelf.previewImages[0],
-                                fit: BoxFit.cover),
-                          )
-                        : const Icon(Icons.list, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // PERBAIKAN 4: Gunakan .title (bukan .name jika modelmu pakai title)
-                      Text(shelf.title,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text("${shelf.bookCount} books",
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Preview Tumpukan (Stack Effect) - Diperbesar untuk Grid
+                    SizedBox(
+                      width: 80,
+                      height: 100,
+                      child: Stack(
+                        children: [
+                          if (list.previewImages.length > 1)
+                            Positioned(
+                              top: 0,
+                              left: 10,
+                              child: Container(
+                                width: 60,
+                                height: 90,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          if (list.previewImages.isNotEmpty)
+                            Positioned(
+                              top: 10,
+                              left: 0,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  list.previewImages[0],
+                                  width: 70,
+                                  height: 90,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      Container(color: Colors.grey[400]),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 70,
+                              height: 90,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Icon(Icons.collections_bookmark,
+                                  size: 40, color: Colors.grey),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Info List (Judul & Jumlah Buku)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Column(
+                        children: [
+                          Text(
+                            list.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "${list.bookCount} books",
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -245,7 +400,7 @@ class _UserListsTab extends StatelessWidget {
   }
 }
 
-// Helper untuk Sticky Header
+// Helper agar TabBar bisa nempel (sticky)
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar _tabBar;
   _SliverAppBarDelegate(this._tabBar);

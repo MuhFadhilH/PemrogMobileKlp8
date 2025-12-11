@@ -7,7 +7,8 @@ import '../models/book_status.dart';
 import '../models/review_model.dart';
 import '../models/book_list_model.dart';
 import '../services/firestore_service.dart';
-import '../screens/components/log_modal.dart';
+import 'book_review_screen.dart';
+import 'log_search_page.dart';
 
 class DetailScreen extends StatefulWidget {
   final Book book;
@@ -85,12 +86,11 @@ class _DetailScreenState extends State<DetailScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 20),
                     children: [
+                      // --- ITEM 1: READING LIST (MAIN) ---
                       InkWell(
                         onTap: () {
-                          Navigator.of(context).pop();
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) _handleReadingListSelection();
-                          });
+                          Navigator.pop(context);
+                          _handleReadingListSelection();
                         },
                         child: Row(
                           children: [
@@ -131,6 +131,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               fontWeight: FontWeight.bold,
                               fontSize: 12)),
                       const SizedBox(height: 10),
+
                       StreamBuilder<List<BookListModel>>(
                         stream: _firestoreService.getCustomLists(),
                         builder: (context, snapshot) {
@@ -175,13 +176,13 @@ class _DetailScreenState extends State<DetailScreen> {
                                           color: Colors.grey[200],
                                           borderRadius:
                                               BorderRadius.circular(8),
-                                          image: list.coverUrl != null
+                                          image: (list.previewImages.isNotEmpty)
                                               ? DecorationImage(
                                                   image: NetworkImage(
-                                                      list.coverUrl!),
+                                                      list.previewImages[0]),
                                                   fit: BoxFit.cover)
                                               : null),
-                                      child: list.coverUrl == null
+                                      child: list.previewImages.isEmpty
                                           ? const Icon(Icons.folder_special,
                                               color: Colors.amber)
                                           : null,
@@ -247,55 +248,24 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // PERBAIKAN UTAMA: Tambah parameter context dan ganti urutan operasi
-  Future<void> _addBookToCustomList(
-      BookListModel list, BuildContext modalContext) async {
-    // Tutup modal DULU sebelum operasi async
-    Navigator.of(modalContext).pop();
-
-    // Set loading state
-    if (mounted) {
+  void _addBookToCustomList(BookListModel list, BuildContext context) async {
+    try {
       setState(() {
         _isAddingToList = true;
       });
-    }
 
-    try {
-      await _firestoreService.addBookToBookListModel(list.id, widget.book);
-
-      // Tampilkan snackbar dengan delay untuk memastikan UI stabil
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Berhasil ditambahkan ke ${list.title}"),
-              backgroundColor: _primaryColor,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      });
+      await _firestoreService.addBookToCustomList(widget.book, list.id!);
+      _safeShowSnackBar("Ditambahkan ke '${list.title}'");
     } catch (e) {
       String errorMessage = e.toString().replaceAll("Exception: ", "");
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.redAccent,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      });
+      _safeShowSnackBar(errorMessage, isError: true);
     } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _isAddingToList = false;
-          });
-        }
+      setState(() {
+        _isAddingToList = false;
       });
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -319,30 +289,8 @@ class _DetailScreenState extends State<DetailScreen> {
           ElevatedButton(
             onPressed: () {
               if (listNameController.text.isNotEmpty) {
-                // Tutup dialog
                 Navigator.pop(context);
-
-                // Buat list
-                _firestoreService.createCustomList(listNameController.text);
-
-                // Tampilkan snackbar konfirmasi
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("List berhasil dibuat"),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                });
-
-                // Buka kembali modal koleksi setelah delay
-                Future.delayed(const Duration(milliseconds: 1000), () {
-                  if (mounted) {
-                    _showCollectionModal();
-                  }
-                });
+                // TODO: Implement create list
               }
             },
             child: const Text("Buat"),
@@ -369,10 +317,8 @@ class _DetailScreenState extends State<DetailScreen> {
           actions: [
             TextButton(
               onPressed: () async {
-                // Tutup dialog dulu
                 Navigator.pop(context);
 
-                // Operasi async setelah dialog ditutup
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
                   if (!mounted) return;
 
@@ -485,18 +431,14 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                // Simpan waktu dulu SEBELUM menutup dialog
                 final selectedHour = tempTime.hour;
                 final selectedMinute = tempTime.minute;
 
-                // Tutup dialog
                 Navigator.pop(context);
 
-                // Operasi async setelah dialog ditutup
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
                   if (!mounted) return;
 
-                  // Gunakan variabel lokal untuk setState di widget utama
                   if (mounted) {
                     setState(() {
                       _isSavingSchedule = true;
@@ -560,20 +502,8 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
-  void _showReviewModal() {
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LogBookModal(preSelectedBook: widget.book),
-    );
-  }
-
   @override
   void dispose() {
-    // Pastikan semua operasi dibersihkan
     super.dispose();
   }
 
@@ -716,29 +646,174 @@ class _DetailScreenState extends State<DetailScreen> {
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 16),
+
+                      // --- BAGIAN REVIEW ---
                       StreamBuilder<List<Review>>(
-                          stream:
-                              _firestoreService.getBookReviews(widget.book.id),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                  child: CircularProgressIndicator());
-                            }
+                        stream: _firestoreService.getBookReviews(widget.book.id,
+                            limit: 3),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                                child: Padding(
+                                    padding: EdgeInsets.all(20),
+                                    child: CircularProgressIndicator()));
+                          }
 
-                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 20),
-                                child: Center(
-                                  child: Text("Belum ada review.",
+                          final reviews = snapshot.data ?? [];
+
+                          if (reviews.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.all(20),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[200]!),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.chat_bubble_outline_rounded,
+                                      size: 40, color: Colors.grey[300]),
+                                  const SizedBox(height: 8),
+                                  const Text("Belum ada diskusi.",
                                       style: TextStyle(color: Colors.grey)),
-                                ),
-                              );
-                            }
+                                  const SizedBox(height: 4),
+                                  const Text("Jadilah yang pertama mereview!",
+                                      style: TextStyle(
+                                          color: Colors.grey, fontSize: 12)),
+                                ],
+                              ),
+                            );
+                          }
 
-                            return const Text(
-                                "Review ada (tampilkan list disini)");
-                          }),
+                          return Column(
+                            children: [
+                              // List Review (Max 3)
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: reviews.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  final review = reviews[index];
+                                  return Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color: Colors.grey.shade200),
+                                      boxShadow: [
+                                        BoxShadow(
+                                            color:
+                                                Colors.grey.withOpacity(0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4)),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 14,
+                                                  backgroundColor:
+                                                      Colors.grey[200],
+                                                  child: Text(
+                                                    review.username.isNotEmpty
+                                                        ? review.username[0]
+                                                        : '?',
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: _primaryColor,
+                                                        fontWeight:
+                                                            FontWeight.bold),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(review.username,
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 13)),
+                                              ],
+                                            ),
+                                            // Rating Bintang Kecil
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.star,
+                                                    color: Colors.amber,
+                                                    size: 14),
+                                                const SizedBox(width: 4),
+                                                Text(review.rating.toString(),
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 12)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          review.reviewText,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              color: Colors.grey[800],
+                                              height: 1.5,
+                                              fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              // TOMBOL LIHAT SEMUA REVIEW
+                              if (reviews.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                BookReviewsScreen(
+                                                    book: widget.book),
+                                          ),
+                                        );
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(
+                                            color: Colors.grey[300]!),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 12),
+                                      ),
+                                      child: const Text("Lihat Semua Review",
+                                          style:
+                                              TextStyle(color: Colors.black)),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -746,6 +821,8 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
             ],
           ),
+
+          // --- FOOTER BUTTONS ---
           Positioned(
             bottom: 0,
             left: 0,
@@ -774,7 +851,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: _isAddingToList
+                      child: _isAddingToList || _isSavingSchedule
                           ? const SizedBox(
                               width: 20,
                               height: 20,
@@ -784,19 +861,50 @@ class _DetailScreenState extends State<DetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
+
+                  // SMART REVIEW BUTTON
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: _showReviewModal,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: const Text("Tulis Review",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: StreamBuilder<Review?>(
+                      stream: _firestoreService
+                          .streamUserReviewForBook(widget.book.id),
+                      builder: (context, snapshot) {
+                        final isReviewed =
+                            snapshot.hasData && snapshot.data != null;
+
+                        return ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LogFormPage(book: widget.book),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                isReviewed ? Colors.green : _primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(isReviewed ? Icons.check : Icons.edit,
+                                  size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                  isReviewed
+                                      ? "Sudah Direview"
+                                      : "Tulis Review",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
